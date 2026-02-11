@@ -1,0 +1,6 @@
+
+{
+  "name": "Guardia AI - Real Telegram Backend",
+  "description": "نظام حماية تلجرام حقيقي يعمل على Node.js مع دعم Webhooks و Gemini AI.",
+  "requestFramePermissions": []
+}
