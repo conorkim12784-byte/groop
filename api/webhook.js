@@ -2,60 +2,62 @@
 const { Telegraf, Markup } = require('telegraf');
 const { GoogleGenAI } = require('@google/genai');
 
+// إعداد البوت والذكاء الاصطناعي
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const DEVELOPER_ID = 1923931101;
 const START_IMAGE = 'https://i.postimg.cc/wxV3PspQ/1756574872401.gif';
 
-// مخزن مؤقت للرتب (يفضل استخدام قاعدة بيانات للدوام)
-let permissions = {
-  [DEVELOPER_ID]: { role: 'DEV', permissions: ['all'] }
+/**
+ * مخزن الرتب (في بيئة Vercel يتم تصفير المتغيرات عند خمول السيرفر)
+ * ملاحظة: يفضل مستقبلاً ربط البوت بـ MongoDB أو Redis لحفظ الرتب بشكل دائم.
+ */
+let permissionsStore = {
+  [DEVELOPER_ID]: { role: 'DEV', type: 'GENERAL' }
 };
 
-let groupSettings = {
-  antiLink: true,
-  antiBadWords: true,
-  lockMedia: false
-};
-
-// --- وظائف التحقق من الصلاحيات ---
-const getRoleLabel = (userId) => {
-  if (userId === DEVELOPER_ID) return '👑 المبرمج';
-  const user = permissions[userId];
-  if (!user) return '👤 عضو';
-  const roles = {
+// --- وظائف المساعدة ---
+const getUserRank = (userId) => {
+  if (userId === DEVELOPER_ID) return { label: '👑 المبرمج', type: 'DEV' };
+  const user = permissionsStore[userId];
+  if (!user) return { label: '👤 عضو عادي', type: 'NONE' };
+  
+  const labels = {
     'G_ADMIN': '🌐 مدير عام',
     'M_MANAGER': '🛡️ مدير مجموعة',
     'M_ADMIN': '👮 أدمن مجموعة',
     'M_VIP': '✨ مميز'
   };
-  return roles[user.role] || '👤 عضو';
+  return { label: labels[user.role] || '👤 عضو', type: user.type, role: user.role };
 };
 
-const hasPermission = (userId, action) => {
+// التحقق هل المستخدم لديه إذن من المبرمج؟
+const isAuthorized = (userId) => {
   if (userId === DEVELOPER_ID) return true;
-  const user = permissions[userId];
-  if (!user) return false;
-  if (user.role === 'G_ADMIN') return true;
-  return false; // لا أحد يتحكم في البوت إلا بإذن المبرمج أو المدير العام
+  const user = permissionsStore[userId];
+  return user && (user.role === 'G_ADMIN' || user.role === 'M_MANAGER');
 };
 
-// --- أوامر المبرمج للتحكم في الرتب ---
+// --- الأوامر والردود ---
+
+// 1. نظام تعيين الرتب (للمبرمج فقط بالرد)
 bot.on('message', async (ctx, next) => {
   if (ctx.from.id === DEVELOPER_ID && ctx.message.reply_to_message) {
-    const targetUser = ctx.message.reply_to_message.from;
-    const text = ctx.message.text;
+    const target = ctx.message.reply_to_message.from;
+    const text = ctx.message.text || '';
 
-    if (text === 'رتبة' || text === 'صلاحيات') {
+    if (['رتبة', 'صلاحيات', 'تعيين'].includes(text)) {
+      const current = getUserRank(target.id);
       const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🌐 رفع مدير عام', `setrole_${targetUser.id}_G_ADMIN`)],
-        [Markup.button.callback('🛡️ رفع مدير مجموعة', `setrole_${targetUser.id}_M_MANAGER`)],
-        [Markup.button.callback('👮 رفع أدمن مجموعة', `setrole_${targetUser.id}_M_ADMIN`)],
-        [Markup.button.callback('✨ رفع مميز', `setrole_${targetUser.id}_M_VIP`)],
-        [Markup.button.callback('❌ تجريد من الرتبة', `setrole_${targetUser.id}_NONE`)]
+        [Markup.button.callback('🌐 رفع مدير عام (عامة)', `set_${target.id}_G_ADMIN_GENERAL`)],
+        [Markup.button.callback('🛡️ مدير مجموعة (مجموعة)', `set_${target.id}_M_MANAGER_GROUP`)],
+        [Markup.button.callback('👮 أدمن مجموعة (مجموعة)', `set_${target.id}_M_ADMIN_GROUP`)],
+        [Markup.button.callback('✨ عضو مميز (مجموعة)', `set_${target.id}_M_VIP_GROUP`)],
+        [Markup.button.callback('❌ تجريد من الرتبة', `set_${target.id}_NONE_NONE`)]
       ]);
-      return ctx.reply(`⚙️ *إدارة صلاحيات المستخدم:*\nالاسم: ${targetUser.first_name}\nالرتبة الحالية: ${getRoleLabel(targetUser.id)}`, {
+
+      return ctx.reply(`⚙️ *إدارة الصلاحيات لمستخدم*\n\nالاسم: ${target.first_name}\nالمعرف: \`${target.id}\`\nالرتبة الحالية: *${current.label}*\n\nاختر الرتبة الجديدة من الأزرار:`, {
         parse_mode: 'Markdown',
         ...keyboard
       });
@@ -64,60 +66,66 @@ bot.on('message', async (ctx, next) => {
   return next();
 });
 
-bot.action(/setrole_(\d+)_(.+)/, async (ctx) => {
-  if (ctx.from.id !== DEVELOPER_ID) return ctx.answerCbQuery('❌ للمبرمج فقط!');
-  const userId = parseInt(ctx.match[1]);
+// معالج أزرار الرتب
+bot.action(/set_(\d+)_(.+)_(.+)/, async (ctx) => {
+  if (ctx.from.id !== DEVELOPER_ID) return ctx.answerCbQuery('⚠️ هذا الإجراء للمبرمج فقط!');
+  
+  const userId = ctx.match[1];
   const role = ctx.match[2];
+  const type = ctx.match[3];
 
   if (role === 'NONE') {
-    delete permissions[userId];
+    delete permissionsStore[userId];
   } else {
-    permissions[userId] = { role, grantedBy: ctx.from.id };
+    permissionsStore[userId] = { role, type };
   }
 
-  ctx.answerCbQuery('✅ تم تحديث الرتبة');
-  ctx.editMessageText(`✅ تم تعيين رتبة *${getRoleLabel(userId)}* للمستخدم بنجاح.`, { parse_mode: 'Markdown' });
+  await ctx.answerCbQuery('✅ تم التحديث');
+  const rankInfo = getUserRank(userId);
+  return ctx.editMessageText(`✅ تم تحديث رتبة المستخدم بنجاح.\nالرتبة الجديدة: *${rankInfo.label}*`, { parse_mode: 'Markdown' });
 });
 
-// --- حماية المحتوى (الذكاء الاصطناعي المصري) ---
+// 2. فلتر الحماية الذكي (مصري شعبي + روابط)
 bot.on(['message', 'edited_message'], async (ctx, next) => {
-  if (!ctx.message || !ctx.message.text || hasPermission(ctx.from.id)) return next();
+  if (!ctx.message || !ctx.message.text || isAuthorized(ctx.from.id)) return next();
 
   const text = ctx.message.text;
   
-  // 1. حماية الروابط
-  if (groupSettings.antiLink && (text.includes('t.me') || text.includes('http'))) {
+  // حماية الروابط
+  if (text.includes('t.me') || text.includes('http') || text.includes('www.')) {
     await ctx.deleteMessage().catch(() => {});
-    return ctx.reply(`⚠️ عذراً ${ctx.from.first_name}، الروابط مسموحة للرتب العليا فقط.`);
+    return ctx.reply(`⚠️ عذراً ${ctx.from.first_name}، إرسال الروابط ممنوع لمن ليس لديهم رتبة.`);
   }
 
-  // 2. فلتر الكلمات المسيئة (باللهجة المصرية)
-  if (groupSettings.antiBadWords) {
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `حلل الرسالة التالية باللهجة المصرية. هل تحتوي على سباب، شتائم سوقية، إيحاءات جنسية، أو تنمر؟ 
-        أجب بكلمة 'YES' إذا كانت مسيئة و 'NO' إذا كانت سليمة.
-        الرسالة: "${text}"`,
-        config: { temperature: 0.1 }
-      });
-      
-      if (response.text.includes('YES')) {
-        await ctx.deleteMessage().catch(() => {});
-        return ctx.reply(`🚫 يا ${ctx.from.first_name}، عيب كدة! خلي أسلوبك محترم في المجموعة.`);
-      }
-    } catch (e) { console.error("Filter Error:", e); }
-  }
+  // ذكاء اصطناعي كاشف للشتائم المصرية
+  try {
+    const result = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `You are an expert in Egyptian street slang and insults. 
+      Analyze this text: "${text}"
+      Does it contain:
+      1. Direct insults to parents or family (Egyptian style)?
+      2. Sexual vulgarity or innuendos?
+      3. Street bullying terms?
+      Answer ONLY 'YES' if it is toxic/bad and 'NO' if it is safe.`,
+      config: { temperature: 0 }
+    });
+
+    if (result.text.includes('YES')) {
+      await ctx.deleteMessage().catch(() => {});
+      return ctx.reply(`🚫 يا ${ctx.from.first_name}، لسانك حصانك! احترم الموجودين في المجموعة.`);
+    }
+  } catch (e) { console.error("Filter Error:", e); }
 
   return next();
 });
 
-// --- الرد الذكي المطور ---
+// 3. الرد الذكي الاحترافي
 bot.on('message', async (ctx) => {
   if (!ctx.message.text) return;
   const text = ctx.message.text;
 
-  // استجابة ذكية إذا نودي بـ "بوت" أو إذا رد أحد على رسالته
+  // يرد إذا نودي بـ "بوت" أو إذا رد أحد على رسالته
   if (text.includes('بوت') || (ctx.message.reply_to_message && ctx.message.reply_to_message.from.id === ctx.botInfo.id)) {
     await ctx.sendChatAction('typing');
     try {
@@ -125,38 +133,46 @@ bot.on('message', async (ctx) => {
         model: 'gemini-3-flash-preview',
         contents: text,
         config: {
-          systemInstruction: `أنت Guardia AI Pro. مساعد ذكي، محترف، ولبق جداً. 
-          - المبرمج الخاص بك هو "MoSalem" (ID: 1923931101).
-          - رد باللغة العربية الفصحى أو المصرية المهذبة حسب سياق المستخدم.
-          - إذا سألك أحد عن رتبته، أخبره: "${getRoleLabel(ctx.from.id)}".
-          - كن صارماً مع المتجاوزين وودوداً مع الأعضاء المحترمين.`,
+          systemInstruction: `أنت Guardia AI Pro، بوت حماية ذكي جداً ومحترف. 
+          - المبرمج هو "MoSalem" (معرفه: 1923931101).
+          - رتبة الشخص الذي يكلمك الآن هي: ${getUserRank(ctx.from.id).label}.
+          - رد بأسلوب لبق، محترم، وقوي. استخدم اللهجة المصرية المهذبة أحياناً.
+          - لا تقبل الإهانة، وإذا سألك أحد عن رتبته أخبره بها بناءً على ما أرسلته لك.`,
         }
       });
       await ctx.reply(chat.text, { reply_to_message_id: ctx.message.message_id });
     } catch (e) {
-      ctx.reply("أنا موجود وأسمعك، لكن لدي ضغط حالياً. كيف أخدمك؟");
+      console.error("AI Response Error:", e);
     }
   }
 });
 
-// --- أوامر عامة ---
+// أوامر عامة
 bot.start((ctx) => {
+  const rank = getUserRank(ctx.from.id);
   const keyboard = Markup.inlineKeyboard([
-    [Markup.button.url('➕ أضفني لمجموعتك', `https://t.me/${ctx.botInfo.username}?startgroup=true`)],
+    [Markup.button.url('➕ أضف البوت لمجموعتك', `https://t.me/${ctx.botInfo.username}?startgroup=true`)],
     [Markup.button.url('👨‍💻 المبرمج', `tg://user?id=${DEVELOPER_ID}`)]
   ]);
+
   ctx.replyWithAnimation(START_IMAGE, {
-    caption: `*مرحباً بك في Guardia AI Pro* 🛡️\n\nأنا بوت حماية يعمل بالذكاء الاصطناعي. \nرتبتك الحالية: *${getRoleLabel(ctx.from.id)}*\n\nفقط المبرمج يمكنه إعطاء الصلاحيات للتحكم بي.`,
+    caption: `*مرحباً بك في Guardia AI Pro* 🛡️\n\nأنا نظام الحماية الأقوى المدعوم بالذكاء الاصطناعي.\n\nرتبتك الحالية: *${rank.label}*\n\n⚠️ ملاحظة: جميع الأوامر والتحكم محصورة للمبرمج والرتب المعينة من قبله فقط.`,
     parse_mode: 'Markdown',
     ...keyboard
   });
 });
 
+// معالج Webhook لـ Vercel
 module.exports = async (req, res) => {
-  if (req.method === 'POST') {
-    await bot.handleUpdate(req.body);
-    res.status(200).send('OK');
-  } else {
-    res.status(200).send('Guardia AI is Online.');
+  try {
+    if (req.method === 'POST') {
+      await bot.handleUpdate(req.body);
+      res.status(200).send('OK');
+    } else {
+      res.status(200).send('Bot is running...');
+    }
+  } catch (error) {
+    console.error("Global Error:", error);
+    res.status(500).send('Error');
   }
 };
