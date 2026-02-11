@@ -4,10 +4,19 @@ export interface GroupSettings {
   title: string;
   lockLinks: boolean;
   lockPhotos: boolean;
+  lockVideos: boolean;
   lockStickers: boolean;
   lockForward: boolean;
   lockAbuse: boolean;
-  lockNSFW: boolean;
+  lockVoice: boolean;
+  lockAudio: boolean;
+  lockAnimation: boolean;
+  lockDocuments: boolean;
+  lockInline: boolean;
+  lockBots: boolean;
+  lockContacts: boolean;
+  lockNotices: boolean;
+  lockChat: boolean;
   aiMode: 'formal' | 'funny' | 'smart';
   aiEnabled: boolean;
   warnLimit: number;
@@ -16,7 +25,14 @@ export interface GroupSettings {
   punishment: 'delete' | 'warn' | 'mute' | 'ban' | 'restrict';
   forcedSubChannel?: string;
   antiLiquidation: boolean;
-  customRanks: Record<string, string[]>; // name: permissions[]
+  admins: number[];
+  managers: number[];
+  features: number[];
+  silencers: number[];
+  baners: number[];
+  enrollers: number[];
+  spamLimit: number;
+  idPhoto: boolean;
 }
 
 export interface SecurityConfig {
@@ -38,11 +54,6 @@ export interface Message {
   type: 'system' | 'user' | 'bot';
   status?: 'allowed' | 'warned' | 'blocked';
   isBot?: boolean;
-}
-
-export interface UserWarning {
-  count: number;
-  lastWarned: Date;
 }
 
 export interface BotStats {
