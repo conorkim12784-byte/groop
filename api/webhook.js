@@ -1,314 +1,232 @@
 
-// Fix: Use import instead of require for @google/genai as per guidelines
 import { Telegraf, Markup } from 'telegraf';
 import { GoogleGenAI } from "@google/genai";
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const aiClient = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// محاكاة قاعدة بيانات متطورة (يجب استبدالها بـ Firestore للإنتاج)
+const BOT_NAME = "سـيـلا";
+const DEVELOPER_ID = 1733610663; // الايدي من ملف PHP
+const CHANNEL_URL = "https://t.me/xxllxxi";
+
+// محاكاة قاعدة البيانات (Ported from PHP logic)
 const db = {
-  groups: {}, // { chatId: settings }
-  warnings: {}, // { chatId_userId: count }
-  devs: [1923931101],
-  globalRanks: {}, // { userId: rankName }
-  subs: {}, // { channelId: url }
-  liquidationLog: {} // { chatId: adminList }
+  groups: {},
+  sudo: [DEVELOPER_ID],
+  devs: [],
+  global_bans: []
 };
 
-const BOT_NAME = "سـيـلا";
-const DEVELOPER_ID = 1923931101;
-const START_IMAGE = 'https://i.postimg.cc/wxV3PspQ/1756574872401.gif';
-
-// --- مساعدات الإدارة ---
 const getSettings = (chatId) => {
   if (!db.groups[chatId]) {
     db.groups[chatId] = {
       id: chatId,
       title: 'Group',
-      lockLinks: true,
-      lockAbuse: true,
-      lockForward: false,
-      lockPhotos: false,
-      lockNSFW: true,
-      aiEnabled: true,
-      aiMode: 'funny',
-      warnLimit: 3,
-      muteDuration: 10,
-      punishment: 'warn',
-      welcomeEnabled: true,
-      antiLiquidation: true,
-      forcedSubChannel: '',
-      customRanks: {}
+      lockLinks: true, lockAbuse: true, lockForward: false,
+      lockPhotos: false, lockVideos: false, lockStickers: false,
+      lockVoice: false, lockAudio: false, lockAnimation: false,
+      lockDocuments: false, lockInline: false, lockBots: true,
+      lockContacts: false, lockNotices: false, lockChat: false,
+      aiEnabled: true, aiMode: 'smart',
+      warnLimit: 3, muteDuration: 10, punishment: 'warn',
+      welcomeEnabled: true, antiLiquidation: true,
+      admins: [], managers: [], features: [],
+      silencers: [], baners: [], enrollers: [],
+      spamLimit: 5, idPhoto: true
     };
   }
   return db.groups[chatId];
 };
 
-const isAdmin = async (ctx, userId) => {
-  if (db.devs.includes(userId)) return true;
-  try {
-    const member = await ctx.telegram.getChatMember(ctx.chat.id, userId);
-    return ['administrator', 'creator'].includes(member.status);
-  } catch (e) { return false; }
-};
+// --- Middleware الحماية (Ported logic) ---
+bot.use(async (ctx, next) => {
+  if (!ctx.chat || ctx.chat.type === 'private' || !ctx.message) return next();
 
-const checkForcedSub = async (ctx, userId, channel) => {
-  if (!channel || db.devs.includes(userId)) return true;
-  try {
-    const member = await ctx.telegram.getChatMember(channel, userId);
-    return ['member', 'administrator', 'creator'].includes(member.status);
-  } catch (e) { return false; }
-};
-
-// --- واجهة المستخدم Box UI ---
-const getBoxUI = (ctx) => {
-  const s = getSettings(ctx.chat.id);
-  return `
-╔═══ 🛡️ لوحة تحكم ${BOT_NAME} ═══╗
-   المجموعة: ${ctx.chat.title}
-
-🔗 الروابط : ${s.lockLinks ? '🔒' : '🔓'}
-🚫 الإساءة : ${s.lockAbuse ? '🔒' : '🔓'}
-🔞 الإباحي : ${s.lockNSFW ? '🔒' : '🔓'}
-🛡️ التوجيه : ${s.lockForward ? '🔒' : '🔓'}
-
-🛡️ تصفية  : ${s.antiLiquidation ? '✅' : '❌'}
-⚠️ التحذيرات: ${s.warnLimit}
-⚖️ العقوبة : ${s.punishment}
-╚══════════════════════╝
-`;
-};
-
-// --- معالجة منع التصفية ---
-bot.on('chat_member', async (ctx) => {
-  const update = ctx.chatMember;
   const chatId = ctx.chat.id;
+  const userId = ctx.from.id;
   const s = getSettings(chatId);
 
-  if (!s.antiLiquidation) return;
+  // تخطي المطور والملاك والمشرفين
+  const member = await ctx.getChatMember(userId).catch(() => ({ status: 'member' }));
+  const isAdmin = ['administrator', 'creator'].includes(member.status) || 
+                  db.sudo.includes(userId) || s.admins.includes(userId) || s.managers.includes(userId);
 
-  // فحص إذا تم طرد أدمن أو سحب صلاحياته
-  if (update.old_chat_member.status === 'administrator' && update.new_chat_member.status !== 'administrator') {
-    const actorId = update.from.id;
-    if (!db.devs.includes(actorId)) {
-      try {
-        await ctx.banChatMember(actorId);
-        await ctx.reply(`🚨 محاولة تصفية من [${update.from.first_name}](tg://user?id=${actorId}) - تم حظر المخالف فوراً وتأمين المجموعة.`, { parse_mode: 'Markdown' });
-      } catch (e) { console.error("Liquidation Shield Fail:", e); }
-    }
-  }
-});
+  if (isAdmin) return next();
 
-// --- الحماية العامة (Middleware) ---
-bot.use(async (ctx, next) => {
-  if (!ctx.chat || ctx.chat.type === 'private') return next();
-
-  const userId = ctx.from?.id;
-  if (!userId) return next();
-
-  const s = getSettings(ctx.chat.id);
-
-  // تخطي المطور والأدمن
-  const isUserAdmin = await isAdmin(ctx, userId);
-  if (isUserAdmin) return next();
-
-  // فحص الاشتراك الإجباري
-  if (s.forcedSubChannel) {
-    const isSubbed = await checkForcedSub(ctx, userId, s.forcedSubChannel);
-    if (!isSubbed) {
-      return ctx.reply(`⚠️ عذراً عزيزي، يجب عليك الاشتراك في القناة أولاً للتحدث:\n${s.forcedSubChannel}`);
-    }
-  }
-
-  // فحص المحتوى
-  if (!ctx.message) return next();
-  const text = ctx.message.text || '';
-  let violated = false;
-  let reason = '';
-
-  if (s.lockLinks && (text.match(/https?:\/\//) || text.includes('t.me/'))) {
-    violated = true; reason = 'إرسال روابط';
-  } else if (s.lockForward && (ctx.message.forward_from || ctx.message.forward_from_chat)) {
-    violated = true; reason = 'توجيه رسائل';
-  }
-
-  if (violated) {
+  // فحص الكتم
+  if (s.silencers.includes(userId)) {
     await ctx.deleteMessage().catch(() => {});
-    return applyPunishment(ctx, userId, s, reason);
+    return;
+  }
+
+  // فحص الحماية (Locks)
+  let violation = false;
+  if (s.lockLinks && (ctx.message.text?.match(/https?:\/\//) || ctx.message.entities?.some(e => e.type === 'url'))) violation = true;
+  if (s.lockForward && (ctx.message.forward_from || ctx.message.forward_from_chat)) violation = true;
+  if (s.lockPhotos && ctx.message.photo) violation = true;
+  if (s.lockStickers && ctx.message.sticker) violation = true;
+  if (s.lockVideos && ctx.message.video) violation = true;
+  if (s.lockChat && ctx.message.text) violation = true;
+
+  if (violation) {
+    await ctx.deleteMessage().catch(() => {});
+    return;
   }
 
   return next();
 });
 
-const applyPunishment = async (ctx, userId, s, reason) => {
-  const key = `${ctx.chat.id}_${userId}`;
-  db.warnings[key] = (db.warnings[key] || 0) + 1;
-  const count = db.warnings[key];
+// --- الأوامر الرئيسية (م1-م5) ---
+bot.hears(['الاوامر', 'م'], async (ctx) => {
+  const text = `
+اهلا بك : ${ctx.from.first_name}
+ 
+*في قائمة الاوامر الاساسية ✅*
+•--------------» [قناة السورس](${CHANNEL_URL}) «--------------•
+م1 •⊱ *لعرض اوامر البحث (AI)*
+م2 •⊱ *لعرض اوامر القفل والفتح*
+م3 •⊱ *لعرض اوامر الرفع والتنزيل*
+م4 •⊱ *لعرض اوامر الحماية*
+م5 •⊱ *لشرح الأوامر والتعليمات*
 
-  if (s.punishment === 'delete') return;
-
-  if (s.punishment === 'warn' || count < s.warnLimit) {
-    if (count >= s.warnLimit) {
-      await ctx.restrictChatMember(userId, { until_date: Math.floor(Date.now()/1000) + 3600, permissions: { can_send_messages: false } });
-      return ctx.reply(`🔇 تم كتم [${ctx.from.first_name}](tg://user?id=${userId}) لمدة ساعة لتجاوز حد التحذيرات.`, { parse_mode: 'Markdown' });
-    }
-    return ctx.reply(`⚠️ تحذير (${count}/${s.warnLimit}) للمستخدم بسبب ${reason}.`, { parse_mode: 'Markdown' });
-  }
-
-  if (s.punishment === 'mute') {
-    await ctx.restrictChatMember(userId, { until_date: Math.floor(Date.now()/1000) + 3600, permissions: { can_send_messages: false } });
-    return ctx.reply(`🔇 تم كتمك تلقائياً بسبب ${reason}.`);
-  }
-
-  if (s.punishment === 'ban') {
-    await ctx.banChatMember(userId);
-    return ctx.reply(`🚷 تم حظر المستخدم تلقائياً بسبب ${reason}.`);
-  }
-};
-
-// --- أوامر التحكم ---
-bot.start((ctx) => {
-  if (ctx.chat.type !== 'private') return;
-  ctx.replyWithAnimation(START_IMAGE, {
-    caption: `≡ أهلاً بك في نظام ${BOT_NAME} الاحترافي 🛡️\n\nنظام حماية متكامل، منع تصفية، وتحكم ذكي.\n\nاستخدم الأزرار للتنقل 👇`,
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback('📋 الأوامر', 'nav_cmds'), Markup.button.callback('⚙️ الإعدادات', 'nav_home')],
-      [Markup.button.url('🚀 المطور', 'https://t.me/FY_TF')]
-    ])
-  });
+*● ملاحظة: البوت يحمي مجموعتك بالذكاء الاصطناعي.*
+`;
+  ctx.reply(text, { parse_mode: 'Markdown', disable_web_page_preview: true });
 });
 
-bot.hears(['تفعيل', 'الاوامر', 'اعدادات'], async (ctx) => {
-  if (!(await isAdmin(ctx, ctx.from.id))) return;
-  ctx.reply(getBoxUI(ctx), {
-    parse_mode: 'Markdown',
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback('🛡️ الحماية', 'nav_shield'), Markup.button.callback('👮 الرتب', 'nav_ranks')],
-      [Markup.button.callback('🎭 الذكاء الاصطناعي', 'nav_ai'), Markup.button.callback('⚖️ العقوبات', 'nav_punish')]
-    ])
-  });
+bot.hears('م1', (ctx) => {
+  ctx.reply(`
+*في قائمة اوامر البحث (مدعوم بـ AI) 🔍*
+━━━━━━━━━━━━
+• اية [النص] : للبحث عن آية وتفسيرها.
+• سورة [الاسم] : لجلب معلومات عن السورة.
+• تفسير [النص] : تفسير آية معينة (ميسر/جلالين).
+• حديث [النص] : البحث عن الأحاديث الشريفة.
+━━━━━━━━━━━━
+*ملاحظة: يمكنك سؤال البوت مباشرة عن أي شيء ديني.*
+`, { parse_mode: 'Markdown' });
 });
 
-// --- التبديل الديناميكي ---
-bot.action(/nav_(.*)/, async (ctx) => {
-  const page = ctx.match[1];
-  const s = getSettings(ctx.chat.id);
-  let text = '';
-  let buttons = [];
-
-  switch(page) {
-    case 'home':
-      text = getBoxUI(ctx);
-      buttons = [
-        [Markup.button.callback('🛡️ الحماية', 'nav_shield'), Markup.button.callback('👮 الرتب', 'nav_ranks')],
-        [Markup.button.callback('🎭 الذكاء الاصطناعي', 'nav_ai'), Markup.button.callback('⚖️ العقوبات', 'nav_punish')]
-      ];
-      break;
-    case 'shield':
-      text = `🛡️ *إعدادات المنع والتحكم*:`;
-      buttons = [
-        [Markup.button.callback(`${s.lockLinks ? '✅' : '❌'} الروابط`, 'toggle_lockLinks'), Markup.button.callback(`${s.lockAbuse ? '✅' : '❌'} الإساءة`, 'toggle_lockAbuse')],
-        [Markup.button.callback(`${s.lockForward ? '✅' : '❌'} التوجيه`, 'toggle_lockForward'), Markup.button.callback(`${s.lockNSFW ? '✅' : '❌'} الإباحي`, 'toggle_lockNSFW')],
-        [Markup.button.callback(`${s.antiLiquidation ? '✅' : '❌'} منع التصفية`, 'toggle_antiLiquidation')],
-        [Markup.button.callback('‹ رجوع', 'nav_home')]
-      ];
-      break;
-    case 'punish':
-      text = `⚖️ *اختر نوع العقوبة للمخالفين*:`;
-      buttons = [
-        [Markup.button.callback(`${s.punishment === 'delete' ? '●' : '○'} حذف فقط`, 'set_punish_delete')],
-        [Markup.button.callback(`${s.punishment === 'warn' ? '●' : '○'} تحذير`, 'set_punish_warn')],
-        [Markup.button.callback(`${s.punishment === 'mute' ? '●' : '○'} كتم`, 'set_punish_mute')],
-        [Markup.button.callback(`${s.punishment === 'ban' ? '●' : '○'} حظر`, 'set_punish_ban')],
-        [Markup.button.callback('‹ رجوع', 'nav_home')]
-      ];
-      break;
-  }
-
-  await ctx.editMessageText(text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard(buttons) });
+bot.hears('م2', (ctx) => {
+  ctx.reply(`
+*قائمة القفل والفتح 🔒*
+━━━━━━━━━━━━
+• قفل / فتح : (الروابط، الصور، الفيديو، الملصقات، التوجيه، الدردشة، الاشعارات، الانلاين، البوتات).
+• الاعدادات : لعرض حالة القفل الحالية.
+━━━━━━━━━━━━
+`, { parse_mode: 'Markdown' });
 });
 
-bot.action(/toggle_(.*)/, async (ctx) => {
-  const key = ctx.match[1];
-  const s = getSettings(ctx.chat.id);
-  s[key] = !s[key];
-  ctx.answerCbQuery(`تم التغيير: ${s[key] ? 'تفعيل' : 'تعطيل'}`);
-  // تحديث الصفحة الحالية
-  return ctx.editMessageReplyMarkup(ctx.callbackQuery.message.reply_markup);
+bot.hears('م3', (ctx) => {
+  ctx.reply(`
+*قائمة الرفع والتنزيل 👮*
+━━━━━━━━━━━━
+• رفع / تنزيل مدير (بالرد).
+• رفع / تنزيل ادمن (بالرد).
+• رفع / تنزيل مميز (بالرد).
+• المدراء / الادمنيه / المميزين : لعرض القوائم.
+━━━━━━━━━━━━
+`, { parse_mode: 'Markdown' });
 });
 
-bot.action(/set_punish_(.*)/, async (ctx) => {
+bot.hears('م4', (ctx) => {
+  ctx.reply(`
+*قائمة الحماية والتقييد 🛡️*
+━━━━━━━━━━━━
+• كتم / الغاء كتم (بالرد).
+• حظر / الغاء حظر (بالرد).
+• تقييد / الغاء التقييد (بالرد).
+• طرد (بالرد).
+• المكتومين / المحظورين / المقيدين : لعرض القوائم.
+━━━━━━━━━━━━
+`, { parse_mode: 'Markdown' });
+});
+
+// --- نظام البحث الذكي (Gemini Implementation) ---
+bot.hears(/^(اية|تفسير|حديث|سورة) (.*)/, async (ctx) => {
   const type = ctx.match[1];
-  const s = getSettings(ctx.chat.id);
-  s.punishment = type;
-  ctx.answerCbQuery(`العقوبة الآن: ${type}`);
-  return ctx.editMessageReplyMarkup(ctx.callbackQuery.message.reply_markup);
-});
+  const query = ctx.match[2];
+  await ctx.sendChatAction('typing');
 
-// --- الأوامر الإدارية (النصية) ---
-bot.hears(/^كتم$/, async (ctx) => {
-  if (!(await isAdmin(ctx, ctx.from.id)) || !ctx.message.reply_to_message) return;
-  const targetId = ctx.message.reply_to_message.from.id;
-  await ctx.restrictChatMember(targetId, { permissions: { can_send_messages: false } });
-  ctx.reply("🔇 تم كتم العضو بنجاح.");
-});
-
-bot.hears(/^حظر$/, async (ctx) => {
-  if (!(await isAdmin(ctx, ctx.from.id)) || !ctx.message.reply_to_message) return;
-  const targetId = ctx.message.reply_to_message.from.id;
-  await ctx.banChatMember(targetId);
-  ctx.reply("🚷 تم حظر العضو بنجاح.");
-});
-
-bot.hears(/^مسح (\d+)$/, async (ctx) => {
-  if (!(await isAdmin(ctx, ctx.from.id))) return;
-  const count = parseInt(ctx.match[1]);
-  if (count > 100) return ctx.reply("⚠️ الحد الأقصى للمسح هو 100 رسالة.");
-  
-  for (let i = 0; i < count; i++) {
-    await ctx.deleteMessage(ctx.message.message_id - i).catch(() => {});
+  try {
+    const response = await aiClient.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `أنت مساعد ديني متخصص. قم بالبحث عن ${type} التالي: "${query}". 
+      إذا كانت آية، اذكرها مع التفسير الميسر. إذا كان حديثاً، اذكر صحته. رد بتنسيق جميل ومنظم.`,
+    });
+    ctx.reply(response.text || "لم أجد نتائج دقيقة.");
+  } catch (e) {
+    ctx.reply("عذراً، فشل الاتصال بمحرك البحث.");
   }
-  ctx.reply(`✅ تم مسح ${count} رسالة.`, { reply_to_message_id: ctx.message.message_id });
 });
 
-// --- أوامر المطور ---
-bot.hears('اذاعة', (ctx) => {
-  if (ctx.from.id !== DEVELOPER_ID) return;
-  ctx.reply("✏️ أرسل رسالة الإذاعة الآن:");
-  // منطق الإذاعة سيتم تنفيذه في bot.on('text')
+// --- أمر ايدي (Ported from PHP) ---
+bot.hears('ايدي', async (ctx) => {
+  const userId = ctx.from.id;
+  const chatId = ctx.chat.id;
+  const s = getSettings(chatId);
+  
+  let rank = "عضو";
+  if (db.sudo.includes(userId)) rank = "المطور الأساسي 👑";
+  else if (s.admins.includes(userId)) rank = "ادمن في البوت 👮";
+  else if (s.managers.includes(userId)) rank = "مدير في البوت 💼";
+  else if (s.features.includes(userId)) rank = "عضو مميز ✨";
+
+  const member = await ctx.getChatMember(userId).catch(() => ({ status: 'member' }));
+  if (member.status === 'creator') rank = "المالك (المنشىء) 💎";
+
+  const text = `
+✅¦ اسمك •⊱ ${ctx.from.first_name}
+✅¦ ايديك •⊱ \`${userId}\`
+✅¦ رتبتك •⊱ *${rank}*
+`;
+
+  if (s.idPhoto) {
+    const photos = await ctx.telegram.getUserProfilePhotos(userId).catch(() => ({ total_count: 0 }));
+    if (photos.total_count > 0) {
+      return ctx.replyWithPhoto(photos.photos[0][0].file_id, { caption: text, parse_mode: 'Markdown' });
+    }
+  }
+  ctx.reply(text, { parse_mode: 'Markdown' });
 });
 
-// --- الذكاء الاصطناعي (Gemini) ---
+// --- أوامر القفل والفتح (Ported Logic) ---
+bot.hears(/^(قفل|فتح) (.*)/, async (ctx) => {
+  const action = ctx.match[1];
+  const feature = ctx.match[2];
+  const chatId = ctx.chat.id;
+  const s = getSettings(chatId);
+
+  const isAdmin = (await ctx.getChatMember(ctx.from.id)).status !== 'member' || db.sudo.includes(ctx.from.id);
+  if (!isAdmin) return;
+
+  const map = {
+    'الروابط': 'lockLinks', 'الصور': 'lockPhotos', 'الفيديو': 'lockVideos',
+    'الملصقات': 'lockStickers', 'التوجيه': 'lockForward', 'الدردشة': 'lockChat',
+    'البوتات': 'lockBots'
+  };
+
+  const key = map[feature];
+  if (key) {
+    s[key] = (action === 'قفل');
+    ctx.reply(`*تم ${action} ${feature} بنجاح ✅*`, { parse_mode: 'Markdown' });
+  }
+});
+
+// --- معالجة الرسائل العامة والرد الذكي ---
 bot.on('text', async (ctx, next) => {
-  const s = getSettings(ctx.chat.id);
+  const chatId = ctx.chat.id;
+  const s = getSettings(chatId);
   const msg = ctx.message.text;
 
-  // فحص الإساءة بالـ AI
-  if (s.lockAbuse && !(await isAdmin(ctx, ctx.from.id))) {
-    try {
-      const check = await aiClient.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `هل النص التالي مسيء أو سباب؟ "${msg}". رد بكلمة نعم أو لا فقط.`,
-      });
-      // Fix: Directly access .text property as it is not a method
-      if (check.text && check.text.includes('نعم')) {
-        await ctx.deleteMessage().catch(() => {});
-        return applyPunishment(ctx, ctx.from.id, s, 'إساءة (AI Check)');
-      }
-    } catch (e) {}
-  }
-
-  // الرد الذكي
   if (s.aiEnabled && (msg.includes(BOT_NAME) || ctx.chat.type === 'private')) {
     await ctx.sendChatAction('typing');
     try {
       const response = await aiClient.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: msg,
-        config: { systemInstruction: `أنت ${BOT_NAME}، بوت حماية وتفاعل مرح. رد باللهجة المصرية.` }
+        config: { systemInstruction: `أنت ${BOT_NAME}، بوت حماية وتفاعل. رد باللهجة المصرية إذا سألك العضو عن حالك. تخصصك الحماية والدين.` }
       });
-      // Fix: Directly access .text property as it is not a method
       ctx.reply(response.text || "أنا هنا لحماية مجموعتك!", { reply_to_message_id: ctx.message.message_id });
     } catch (e) {}
   }
@@ -320,6 +238,6 @@ export default async (req, res) => {
     await bot.handleUpdate(req.body);
     res.status(200).send('OK');
   } else {
-    res.status(200).send('Sila Professional Guard Online');
+    res.status(200).send('Sila Professional Guard Online (Ported from PHP Source)');
   }
 };
