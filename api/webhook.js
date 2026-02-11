@@ -6,147 +6,133 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const DEVELOPER_ID = 1923931101;
+const BOT_NAME = "Guardia Pro";
 const START_IMAGE = 'https://i.postimg.cc/wxV3PspQ/1756574872401.gif';
 
-// مخزن مؤقت (سيتأثر بإعادة تشغيل Vercel، لذا المبرمج دائماً ثابت)
-let permissionsStore = {
-  [DEVELOPER_ID]: { role: 'DEV', type: 'GENERAL' }
+// مخزن البيانات (يفضل مستقبلاً استخدام قاعدة بيانات)
+let db = {
+  permissions: { [DEVELOPER_ID]: { role: 'DEV' } },
+  settings: { antiLink: true, antiBadWords: true, antiNsfw: true },
+  customResponses: {},
+  stats: { users: new Set(), groups: new Set() }
 };
 
-const getUserRank = (userId) => {
-  if (Number(userId) === DEVELOPER_ID) return { label: '👑 المبرمج', type: 'DEV' };
-  const user = permissionsStore[userId];
-  if (!user) return { label: '👤 عضو', type: 'NONE' };
-  
-  const labels = {
-    'G_ADMIN': '🌐 مدير عام',
-    'M_MANAGER': '🛡️ مدير مجموعة',
-    'M_ADMIN': '👮 أدمن مجموعة',
-    'M_VIP': '✨ مميز'
+// --- المساعدات (Helpers) ---
+const checkRank = (userId) => {
+  if (Number(userId) === DEVELOPER_ID) return { label: '👑 المطور الأسسي', level: 5 };
+  const user = db.permissions[userId];
+  if (!user) return { label: '👤 عضو', level: 0 };
+  const ranks = {
+    'G_ADMIN': { label: '🌐 مدير عام', level: 4 },
+    'M_MANAGER': { label: '🛡️ مدير مجموعة', level: 3 },
+    'M_ADMIN': { label: '👮 أدمن', level: 2 },
+    'M_VIP': { label: '✨ مميز', level: 1 }
   };
-  return { label: labels[user.role] || '👤 عضو', type: user.type, role: user.role };
+  return ranks[user.role] || { label: '👤 عضو', level: 0 };
 };
 
-const isAuthorized = (userId) => {
-  if (Number(userId) === DEVELOPER_ID) return true;
-  const user = permissionsStore[userId];
-  return user && (user.role === 'G_ADMIN' || user.role === 'M_MANAGER');
-};
+const isAdmin = (userId) => checkRank(userId).level >= 2;
 
-// --- الأوامر ---
+// --- القوائم (Menus) ---
+const mainKeyboard = Markup.inlineKeyboard([
+  [Markup.button.callback('‹ الأوامر ›', 'menu_cmds')],
+  [Markup.button.url('‹ قناة البوت ›', 'https://t.me/YourChannel')],
+  [Markup.button.url('‹ أضف البوت الى مجموعتك ›', `https://t.me/${process.env.BOT_USERNAME || 'bot'}?startgroup=true`)],
+  [Markup.button.callback('‹ المطور ›', 'menu_dev'), Markup.button.callback('‹ لغات البوت ›', 'menu_lang')]
+]);
 
+const cmdsKeyboard = Markup.inlineKeyboard([
+  [Markup.button.callback('أوامر الحماية', 'cmds_shield'), Markup.button.callback('أوامر الرتب', 'cmds_ranks')],
+  [Markup.button.callback('أوامر الردود', 'cmds_resp'), Markup.button.callback('أوامر المنع', 'cmds_prevent')],
+  [Markup.button.callback('الأوامر الإضافية', 'cmds_extra')],
+  [Markup.button.callback('العودة', 'menu_main')]
+]);
+
+// --- الأوامر الأساسية ---
 bot.start((ctx) => {
-  const rank = getUserRank(ctx.from.id);
-  const keyboard = Markup.inlineKeyboard([
-    [Markup.button.url('➕ أضف البوت لمجموعتك', `https://t.me/${ctx.botInfo.username}?startgroup=true`)],
-    [Markup.button.url('👨‍💻 المبرمج', `tg://user?id=${DEVELOPER_ID}`)]
-  ]);
-
+  db.stats.users.add(ctx.from.id);
   return ctx.replyWithAnimation(START_IMAGE, {
-    caption: `*مرحباً بك في Guardia AI Pro* 🛡️\n\nأنا نظام الحماية الذكي لمجموعتك.\n\nرتبتك الحالية: *${rank.label}*\n\n⚠️ التحكم الكامل محصور للمبرمج والرتب المعتمدة.`,
-    parse_mode: 'Markdown',
-    ...keyboard
-  }).catch(e => console.error("Start Error:", e));
+    caption: `≡ اهلا بك عزيزي انا بوت ${BOT_NAME}\n≡ يمكنني حماية مجموعتك وتسلية الأعضاء\n≡ ادعم الردود الذكية والمنع التلقائي\n\nصلِ على النبي وتبسم ❤️✨`,
+    ...mainKeyboard
+  });
 });
 
-// نظام تعيين الرتب بالرد (للمبرمج فقط)
+bot.action('menu_main', (ctx) => ctx.editMessageCaption(`≡ اهلا بك عزيزي انا بوت ${BOT_NAME} ...`, mainKeyboard));
+bot.action('menu_cmds', (ctx) => ctx.editMessageCaption(`≡ قائمة الأوامر المتاحة في البوت ⚡:\n\nاختر القسم الذي تريد استكشافه من الأسفل:`, cmdsKeyboard));
+
+// استجابات أقسام الأوامر (مطابقة للصور)
+bot.action('cmds_shield', (ctx) => {
+  const text = `⚡ *اوامر الحماية :*\n\n» كتم - الغاء كتم - مسح المكتومين\n» تقييد - الغاء تقييد - مسح المقيدين\n» حظر - الغاء حظر - مسح المحظورين\n» مسح + الرد - مسح + عدد الرسائل\n\n» المشرفين - جلب قائمة المشرفين\n» البوتات - جلب قائمة البوتات\n» طرد البوتات - حذف البوتات`;
+  ctx.editMessageCaption(text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback('العودة', 'menu_cmds')]]) });
+});
+
+bot.action('cmds_prevent', (ctx) => {
+  const text = `⚡ *اوامر المنع :*\n\n» منع الروابط - فتح الروابط\n» منع الاساءة - فتح الاساءة\n» منع الاباحي - فتح الاباحي\n» منع التوجيه - فتح التوجيه\n\n- الاوامر متاحه في المجموعات والقنوات\n- يتم التعامل مع المخالفين تلقائياً`;
+  ctx.editMessageCaption(text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback('العودة', 'menu_cmds')]]) });
+});
+
+bot.action('cmds_extra', (ctx) => {
+  const text = `⚡ *الاوامر الإضافية :*\n\n• صراحه » اسئلة صراحه\n• تويت » اسئلة ترفيهيه\n• اعلام » معرفة الاعلام\n• لغز » الغاز مشهوره\n• مشاهير » معرفة المشاهير\n• لو خيروك » اختار حاجه من اتنين\n• تحدي » تحديات مسليه`;
+  ctx.editMessageCaption(text, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback('العودة', 'menu_cmds')]]) });
+});
+
+// --- نظام الرتب (بالرد) ---
 bot.on('message', async (ctx, next) => {
-  if (ctx.from.id === DEVELOPER_ID && ctx.message.reply_to_message) {
+  if (ctx.message.reply_to_message && ctx.from.id === DEVELOPER_ID) {
     const target = ctx.message.reply_to_message.from;
     const text = ctx.message.text || '';
-
-    if (['رتبة', 'صلاحيات', 'تعيين'].includes(text)) {
-      const current = getUserRank(target.id);
-      const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('🌐 مدير عام', `s_${target.id}_GA`)],
-        [Markup.button.callback('🛡️ مدير مجموعة', `s_${target.id}_MM`)],
-        [Markup.button.callback('👮 أدمن مجموعة', `s_${target.id}_MA`)],
-        [Markup.button.callback('❌ تجريد', `s_${target.id}_NO`)]
-      ]);
-
-      return ctx.reply(`⚙️ *إدارة الصلاحيات:*\nالاسم: ${target.first_name}\nالرتبة: ${current.label}`, {
-        parse_mode: 'Markdown',
-        ...keyboard
-      });
+    
+    if (text.startsWith('ترقيه')) {
+      const role = text.split(' ')[1]; // مثال: ترقيه مدير
+      let roleKey = '';
+      if (role === 'مدير_عام') roleKey = 'G_ADMIN';
+      if (role === 'مدير') roleKey = 'M_MANAGER';
+      if (role === 'ادمن') roleKey = 'M_ADMIN';
+      
+      if (roleKey) {
+        db.permissions[target.id] = { role: roleKey };
+        return ctx.reply(`✅ تم ترقية ${target.first_name} الى رتبة ${role}`);
+      }
     }
   }
   return next();
 });
 
-// معالج الأزرار المحدث (مختصر لتجنب أخطاء Callback)
-bot.action(/s_(\d+)_(.+)/, async (ctx) => {
-  if (ctx.from.id !== DEVELOPER_ID) return ctx.answerCbQuery('⚠️ للمبرمج فقط');
-  
-  const userId = ctx.match[1];
-  const roleKey = ctx.match[2];
-  
-  const roles = {
-    'GA': { role: 'G_ADMIN', type: 'GENERAL' },
-    'MM': { role: 'M_MANAGER', type: 'GROUP' },
-    'MA': { role: 'M_ADMIN', type: 'GROUP' },
-    'NO': null
-  };
-
-  if (roles[roleKey] === null) {
-    delete permissionsStore[userId];
-  } else {
-    permissionsStore[userId] = roles[roleKey];
-  }
-
-  await ctx.answerCbQuery('✅ تم التحديث');
-  const rankInfo = getUserRank(userId);
-  return ctx.editMessageText(`✅ تم تحديث الرتبة إلى: *${rankInfo.label}*`, { parse_mode: 'Markdown' });
-});
-
-// فلتر الحماية والذكاء الاصطناعي
+// --- الترفيه الذكي والردود ---
 bot.on('message', async (ctx) => {
   if (!ctx.message.text) return;
   const text = ctx.message.text;
-  const userId = ctx.from.id;
 
-  // 1. حماية الروابط (تجاهل المبرمج والمشرفين)
-  if (!isAuthorized(userId) && (text.includes('t.me') || text.includes('http'))) {
-    await ctx.deleteMessage().catch(() => {});
-    return ctx.reply(`⚠️ ${ctx.from.first_name}، الروابط ممنوعة حالياً.`);
+  // أوامر ترفيه سريعة
+  if (text === 'صراحه') {
+    const q = ["هل كذبت اليوم؟", "ما هو سرك الأكبر؟", "من هو الشخص المفضل لديك؟"];
+    return ctx.reply(`✨ سؤال صراحة:\n\n${q[Math.floor(Math.random()*q.length)]}`);
   }
 
-  // 2. الرد الذكي (عند المناداة أو الرد)
+  // الرد الذكي
   if (text.includes('بوت') || (ctx.message.reply_to_message && ctx.message.reply_to_message.from.id === ctx.botInfo.id)) {
     try {
       await ctx.sendChatAction('typing');
-      
-      const result = await ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: text,
         config: {
-          systemInstruction: `أنت Guardia AI. مساعد ذكي. المبرمج هو MoSalem (1923931101). رتبة المستخدم: ${getUserRank(userId).label}. رد بلهجة مصرية مهذبة وقصيرة.`,
-          maxOutputTokens: 200
+          systemInstruction: `أنت بوت "Guardia AI". مطورك هو MoSalem. رتبة المستخدم هي ${checkRank(ctx.from.id).label}. رد بلهجة مصرية خفيفة وذكية كما في بوتات التلجرام المشهورة.`,
+          maxOutputTokens: 150
         }
       });
-
-      const replyText = result.text;
-      if (replyText) {
-        return await ctx.reply(replyText, { reply_to_message_id: ctx.message.message_id });
-      } else {
-        return await ctx.reply("أنا موجود، كيف أساعدك؟");
-      }
+      return ctx.reply(response.text, { reply_to_message_id: ctx.message.message_id });
     } catch (e) {
-      console.error("AI Error:", e);
-      return await ctx.reply("معك Guardia AI، كيف يمكنني خدمتك؟ (حدث ضغط بسيط في المحرك)");
+      return ctx.reply("أمرك يا باشا، أنا معاك!");
     }
   }
 });
 
 module.exports = async (req, res) => {
-  try {
-    if (req.method === 'POST') {
-      await bot.handleUpdate(req.body);
-      res.status(200).send('OK');
-    } else {
-      res.status(200).send('Guardia AI is Online 🛡️');
-    }
-  } catch (err) {
-    console.error("Webhook Handler Error:", err);
-    res.status(200).send('OK'); // نرسل 200 دائماً لتجنب إعادة إرسال تلجرام للطلبات الفاشلة باستمرار
+  if (req.method === 'POST') {
+    await bot.handleUpdate(req.body);
+    res.status(200).send('OK');
+  } else {
+    res.status(200).send('Guardia AI is Online 🛡️');
   }
 };
