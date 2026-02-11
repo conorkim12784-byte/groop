@@ -10,12 +10,12 @@ const SUDO_ID = 1923931101;
 const CHANNEL_URL = "https://t.me/FY_TF";
 const START_IMAGE = 'https://t.me/XX4XV/10';
 
-// محاكاة قاعدة بيانات متقدمة في الذاكرة
+// قاعدة بيانات في الذاكرة (Memory DB)
 const db = {
-  groups: {}, // { chatId: { active, locks, ranks: { creators, managers, admins, features }, filters: [] } }
-  users: {},  // { userId: { points, msgs } }
+  groups: {}, 
+  users: {},  
   sudo: [SUDO_ID],
-  devs: [],   // المطورين المرفوعين
+  devs: [],   
   privateUsers: new Set()
 };
 
@@ -56,30 +56,36 @@ const getRank = async (ctx, userId) => {
   return { title: "عضو 🙍🏼‍♂️", level: 1 };
 };
 
-const devButtons = Markup.inlineKeyboard([
-  [Markup.button.url('قناة السورس', CHANNEL_URL)],
-  [Markup.button.url('المطور', 'https://t.me/FY_TF')]
+// --- لوحات الأزرار التفاعلية ---
+const mainKeyboard = () => Markup.inlineKeyboard([
+  [Markup.button.callback('م1 - الرفع والتنزيل 👮', 'menu_1'), Markup.button.callback('م2 - الإعدادات 📟', 'menu_2')],
+  [Markup.button.callback('م3 - الحماية والأقفال 🛡️', 'menu_3'), Markup.button.callback('م4 - الألعاب 🎭', 'menu_4')],
+  [Markup.button.callback('م المطور 🕹️', 'menu_sudo')],
+  [Markup.button.url('قناة السورس 📢', CHANNEL_URL)]
 ]);
 
-// --- معالجة الرسائل والقواعد ---
+const backButton = Markup.inlineKeyboard([
+  [Markup.button.callback('‹ رجوع للقائمة الرئيسية', 'main_menu')]
+]);
+
+// --- Middleware الحماية والأقفال ---
 bot.on('message', async (ctx, next) => {
   if (!ctx.chat || !ctx.from) return next();
-  
-  // حفظ مستخدمي الخاص للاذاعة
-  if (ctx.chat.type === 'private') db.privateUsers.add(ctx.from.id);
-
-  if (ctx.chat.type !== 'supergroup' && ctx.chat.type !== 'group') return next();
+  if (ctx.chat.type === 'private') {
+    db.privateUsers.add(ctx.from.id);
+    return next();
+  }
 
   const g = getGroup(ctx.chat.id);
   const user = getUser(ctx.from.id);
   user.msgs++;
 
-  if (!g.active && !ctx.message.text?.includes('تفعيل')) return next();
+  if (!g.active && !ctx.message.text?.includes('تفعيل')) return;
 
   const rank = await getRank(ctx, ctx.from.id);
-  if (rank.level >= 80) return next(); // تخطي الادمنية
+  if (rank.level >= 80) return next(); 
 
-  // فحص الكلمات الممنوعة (Filters)
+  // فحص الكلمات الممنوعة
   if (ctx.message.text && g.filters.some(f => ctx.message.text.includes(f))) {
     return ctx.deleteMessage().catch(() => {});
   }
@@ -94,24 +100,51 @@ bot.on('message', async (ctx, next) => {
   if (g.locks.sticker === 'l' && m.sticker) violate = true;
   if (g.locks.doc === 'l' && m.document) violate = true;
   if (g.locks.fwd === 'l' && (m.forward_from || m.forward_from_chat)) violate = true;
-  if (g.locks.bots === 'l' && m.new_chat_members?.some(u => u.is_bot)) {
-    m.new_chat_members.forEach(u => u.is_bot && u.id !== ctx.botInfo.id && ctx.banChatMember(u.id).catch(() => {}));
-    violate = true;
-  }
-
+  
   if (violate) return ctx.deleteMessage().catch(() => {});
 
   // فحص إجابات الألعاب
   if (g.currentGame && m.text === g.currentGame.answer) {
     user.points++;
-    ctx.reply(`🎉¦ مبروك <a href="tg://user?id=${ctx.from.id}">${ctx.from.first_name}</a>\n🎊¦ لقد فزت بنقطة في لعبة ${g.currentGame.name}\n💰¦ نقاطك الحالية: { ${user.points} }`, { parse_mode: 'HTML' });
+    ctx.reply(`🎉¦ مبروك ${ctx.from.first_name}\n🎊¦ فزت بنقطة في لعبة ${g.currentGame.name}\n💰¦ نقاطك: { ${user.points} }`);
     g.currentGame = null;
   }
 
   return next();
 });
 
-// --- الأوامر النصية ---
+// --- معالجة الضغط على الأزرار (Actions) ---
+bot.action('main_menu', async (ctx) => {
+  await ctx.editMessageText(`‌‌‏❋¦ مـسـآرت آلآوآمـر آلعآمـهہ‌‏ لـ ${BOT_NAME} ⇊`, mainKeyboard());
+});
+
+bot.action('menu_1', async (ctx) => {
+  const text = `•⊱ أوامر الرفع والتنزيل ⊰•\n\n- رفع/تنزيل منشى\n- رفع/تنزيل مدير\n- رفع/تنزيل ادمن\n- رفع/تنزيل مميز\n\n- حظر / طرد / كتم / تقييد (بالرد)\n- كشف (بالرد لعرض معلومات المستخدم)`;
+  await ctx.editMessageText(text, backButton);
+});
+
+bot.action('menu_2', async (ctx) => {
+  const text = `👨🏽‍✈️¦ أوامر إعدادات المجموعة م2 ::\n\n- ضع اسم [الاسم]\n- الرابط\n- الادمنيه / المنشئين / المدراء\n- ايدي / موقعي / نقاطي\n- مسح [العدد]`;
+  await ctx.editMessageText(text, backButton);
+});
+
+bot.action('menu_3', async (ctx) => {
+  const text = `🛡️¦ أوامر الحماية والأقفال م3 ::\n\n- قفل/فتح الصور\n- قفل/فتح الروابط\n- قفل/فتح الفيديو\n- قفل/فتح البصمات\n- قفل/فتح التوجيه\n- قفل/فتح الملفات\n- قفل/فتح البوتات\n- قفل/فتح الكل`;
+  await ctx.editMessageText(text, backButton);
+});
+
+bot.action('menu_4', async (ctx) => {
+  const text = `🎭¦ قائمة الألعاب والترفيه م4 ::\n\n- ترتيب (لعبة الكلمات)\n- معاني (لعبة الإيموجي)\n- الاسرع (لعبة السرعة)`;
+  await ctx.editMessageText(text, backButton);
+});
+
+bot.action('menu_sudo', async (ctx) => {
+  if (ctx.from.id !== SUDO_ID) return ctx.answerCbQuery("⚠️ هذا القسم للمطور فقط!", { show_alert: true });
+  const text = `🕹️¦ أوامر مطور السورس ::\n\n- اذاعه (للكروبات)\n- اذاعه خاص\n- جلب ملف [الاسم]\n- غادر [الايدي]`;
+  await ctx.editMessageText(text, backButton);
+});
+
+// --- الأوامر النصية الأساسية ---
 bot.start((ctx) => {
   if (ctx.chat.type !== 'private') return;
   const text = `💯¦ مـرحبآ آنآ اسمي ${BOT_NAME} 🎖\n💰¦ آختصـآصـي: حـمـايهہ‌‏ آلمـجمـوعآت \n📌¦ من السبام، التوجيه، التكرار والمخلفات.\n🎮¦ مطور البوت: @FY_TF 👨🏽‍🔧`;
@@ -122,52 +155,34 @@ bot.hears(['تفعيل', 'تفعيل البوت'], async (ctx) => {
   const rank = await getRank(ctx, ctx.from.id);
   if (rank.level < 90) return ctx.reply("⚠️ هذا الأمر يخص المنشئ أو المطور فقط.");
   const g = getGroup(ctx.chat.id);
-  if (g.active) return ctx.reply("🎗¦ المجموعه بالتأكيد ✓️ تم تفعيلها");
   g.active = true;
-  ctx.reply("📮¦ تـم تـفـعـيـل الـمـجـمـوعـه ✓️\n👨🏽‍🔧¦ وتم رفع جمـيع آلآدمـنيهہ‌‌‏ بآلبوت.", devButtons);
+  ctx.reply("📮¦ تـم تـفـعـيـل الـمـجـمـوعـه ✓️\nاستخدم زر 'الاوامر' لعرض لوحة التحكم.", mainKeyboard());
 });
 
-bot.hears('الاوامر', (ctx) => {
-  ctx.reply(`‌‌‏❋¦ مـسـآرت آلآوآمـر آلعآمـهہ‌‏ ⇊\n\n👨‍⚖️¦ م1 » آوآمـر آلآدآرهہ‌‏\n📟¦ م2 » آوآمـر آعدآدآت آلمـجمـوعهہ‌‏\n🛡¦ م3 » آوآمـر آلحمـآيهہ‌‏\n🕹¦ م المطور » آوآمـر آلمـطـور\n🗯┇ @FY_TF`, devButtons);
+bot.hears('الاوامر', async (ctx) => {
+  const rank = await getRank(ctx, ctx.from.id);
+  if (rank.level < 50) return;
+  ctx.reply(`‌‌‏❋¦ مـسـآرت آلآوآمـر آلعآمـهہ‌‏ لـ ${BOT_NAME} ⇊`, mainKeyboard());
 });
 
-bot.hears('م1', (ctx) => ctx.reply("•⊱ آوآمر الرفع والتنزيل ⊰•\n\n- رفع/تنزيل منشى\n- رفع/تنزيل مدير\n- رفع/تنزيل ادمن\n- رفع/تنزيل مميز\n\n- حظر / طرد / كتم / تقييد (بالرد)"));
-bot.hears('م2', (ctx) => ctx.reply("👨🏽‍✈️¦ اوامر الوضع للمجموعه ::\n\n- ضع اسم [الاسم]\n- الرابط\n- الادمنيه / المنشئين / المدراء\n- ايدي / موقعي / نقاطي\n- مسح [العدد]"));
-bot.hears('م3', (ctx) => ctx.reply("⚡️ اوامر حماية المجموعه ⚡️\n\n- قفل/فتح: (الصور، الروابط، الفيديو، البصمات، التوجيه، الملفات، البوتات، الكل)"));
-
-// --- نظام الألعاب ---
-const gameData = {
-  tarteeb: [ {q: 'س ا د', a: 'اسد'}, {q: 'ه ا ر س ي', a: 'سياره'}, {q: 'و ن ي ا ف', a: 'ايفون'} ],
-  meanings: [ {q: '🚀', a: 'صاروخ'}, {q: '⚽', a: 'كورة'}, {q: '🍎', a: 'تفاحة'} ]
-};
-
-bot.hears('ترتيب', (ctx) => {
-  const item = gameData.tarteeb[Math.floor(Math.random() * gameData.tarteeb.length)];
-  getGroup(ctx.chat.id).currentGame = { name: 'الترتيب', answer: item.a };
-  ctx.reply(`اسرع واحد يرتب » { ${item.q} } «`);
-});
-
-bot.hears('معاني', (ctx) => {
-  const item = gameData.meanings[Math.floor(Math.random() * gameData.meanings.length)];
-  getGroup(ctx.chat.id).currentGame = { name: 'المعاني', answer: item.a };
-  ctx.reply(`اسرع واحد يدز معنى السمايل » { ${item.q} } «`);
-});
-
-// --- أوامر الرفع والتنزيل (بالرد) ---
+// --- تنفيذ أوامر الرفع والتنزيل (برمجة حقيقية) ---
 const handleRank = async (ctx, rankKey, action) => {
   const g = getGroup(ctx.chat.id);
   const myRank = await getRank(ctx, ctx.from.id);
-  if (myRank.level < 90 && rankKey !== 'admins') return ctx.reply("⚠️ لا تملك صلاحية كافية.");
   
+  // صلاحيات الرفع
+  if (myRank.level < 85) return ctx.reply("⚠️ لا تملك صلاحية لرفع الرتب.");
   if (!ctx.message.reply_to_message) return ctx.reply("⚠️ يجب الرد على المستخدم.");
-  const targetId = ctx.message.reply_to_message.from.id;
   
+  const targetId = ctx.message.reply_to_message.from.id;
+  const targetName = ctx.message.reply_to_message.from.first_name;
+
   if (action === 'up') {
     if (!g.ranks[rankKey].includes(targetId)) g.ranks[rankKey].push(targetId);
-    ctx.reply(`👤¦ العضو » ${ctx.message.reply_to_message.from.first_name}\n🛠¦ تم رفعه بنجاح ✓`);
+    ctx.reply(`👤¦ العضو » ${targetName}\n🛠¦ تم رفعه بنجاح ✓`);
   } else {
     g.ranks[rankKey] = g.ranks[rankKey].filter(id => id !== targetId);
-    ctx.reply(`👤¦ العضو » ${ctx.message.reply_to_message.from.first_name}\n🛠¦ تم تنزيله بنجاح ✓`);
+    ctx.reply(`👤¦ العضو » ${targetName}\n🛠¦ تم تنزيله بنجاح ✓`);
   }
 };
 
@@ -180,95 +195,48 @@ bot.hears('تنزيل ادمن', (ctx) => handleRank(ctx, 'admins', 'down'));
 bot.hears('رفع مميز', (ctx) => handleRank(ctx, 'features', 'up'));
 bot.hears('تنزيل مميز', (ctx) => handleRank(ctx, 'features', 'down'));
 
-// --- أوامر المنع ---
-bot.hears(/^منع (.*)/, async (ctx) => {
+// --- تنفيذ أوامر القفل والفتح ---
+bot.hears(/^(قفل|فتح) (الصور|الروابط|الفيديو|البصمات|التوجيه|البوتات|الملفات|الكل)/, async (ctx) => {
   const rank = await getRank(ctx, ctx.from.id);
   if (rank.level < 80) return;
-  const word = ctx.match[1].trim();
+  
+  const action = ctx.match[1] === 'قفل' ? 'l' : 'o';
+  const type = ctx.match[2];
   const g = getGroup(ctx.chat.id);
-  if (!g.filters.includes(word)) g.filters.push(word);
-  ctx.reply(`تـم 🚷 منـ؏ الـ(${word}) 💯`);
-});
+  
+  const map = {
+    'الصور': 'photo', 'الروابط': 'link', 'الفيديو': 'video', 
+    'البصمات': 'voice', 'التوجيه': 'fwd', 'البوتات': 'bots', 'الملفات': 'doc'
+  };
 
-bot.hears(/^الغاء منع (.*)/, async (ctx) => {
-  const rank = await getRank(ctx, ctx.from.id);
-  if (rank.level < 80) return;
-  const word = ctx.match[1].trim();
-  const g = getGroup(ctx.chat.id);
-  g.filters = g.filters.filter(w => w !== word);
-  ctx.reply(`تـم 🚷 إلغـاء منـ؏ الـ(${word}) 💯`);
-});
-
-// --- الأوامر الإدارية ---
-bot.hears('حظر', async (ctx) => {
-  const rank = await getRank(ctx, ctx.from.id);
-  if (rank.level < 80 || !ctx.message.reply_to_message) return;
-  await ctx.banChatMember(ctx.message.reply_to_message.from.id);
-  ctx.reply("🚷 تم الحظر بنجاح ✓");
-});
-
-bot.hears('طرد', async (ctx) => {
-  const rank = await getRank(ctx, ctx.from.id);
-  if (rank.level < 80 || !ctx.message.reply_to_message) return;
-  await ctx.kickChatMember(ctx.message.reply_to_message.from.id);
-  await ctx.unbanChatMember(ctx.message.reply_to_message.from.id);
-  ctx.reply("👞 تم الطرد بنجاح ✓");
-});
-
-bot.hears('مسح', async (ctx) => {
-  const rank = await getRank(ctx, ctx.from.id);
-  if (rank.level < 80) return;
-  const count = parseInt(ctx.message.text.split(' ')[1]) || 10;
-  for (let i = 0; i < count; i++) {
-    ctx.deleteMessage(ctx.message.message_id - i).catch(() => {});
+  if (type === 'الكل') {
+    Object.keys(g.locks).forEach(k => g.locks[k] = action);
+    ctx.reply(`🙋🏼‍♂️¦ تم ${ctx.match[1]} الكل بنجاح ✓`);
+  } else {
+    g.locks[map[type]] = action;
+    ctx.reply(`🙋🏼‍♂️¦ تم ${ctx.match[1]} ${type} بنجاح ✓`);
   }
 });
 
-// --- أوامر السودو (المطور) ---
-bot.hears('اذاعه', async (ctx) => {
-  if (ctx.from.id !== SUDO_ID) return;
-  ctx.reply("ارسل الآن نص الإذاعة للمجموعات...");
-  db.sudoMode = 'broadcast_groups';
+// --- البحث الذكي والزخرفة (AI) ---
+bot.hears(/^زخرف (.*)/, async (ctx) => {
+  const name = ctx.match[1];
+  const response = await aiClient.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `قم بزخرفة الاسم التالي بـ 5 أنماط احترافية للتلجرام: ${name}`
+  });
+  ctx.reply(response.text || name);
 });
 
-bot.hears('اذاعه خاص', async (ctx) => {
-  if (ctx.from.id !== SUDO_ID) return;
-  ctx.reply("ارسل الآن نص الإذاعة للخاص...");
-  db.sudoMode = 'broadcast_private';
+bot.hears(/^(اية|حديث|تفسير) (.*)/, async (ctx) => {
+  const type = ctx.match[1];
+  const query = ctx.match[2];
+  const response = await aiClient.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `أنت باحث إسلامي، ابحث عن ${type}: "${query}" واذكر المصدر بدقة.`
+  });
+  ctx.reply(response.text || "لم أجد نتائج دقيقة.");
 });
-
-// مراقب الإذاعة والزخرفة
-bot.on('text', async (ctx, next) => {
-  if (db.sudoMode && ctx.from.id === SUDO_ID) {
-    const text = ctx.message.text;
-    if (db.sudoMode === 'broadcast_groups') {
-      Object.keys(db.groups).forEach(id => bot.telegram.sendMessage(id, text).catch(() => {}));
-      ctx.reply("✅ تمت الإذاعة للمجموعات.");
-    } else if (db.sudoMode === 'broadcast_private') {
-      db.privateUsers.forEach(id => bot.telegram.sendMessage(id, text).catch(() => {}));
-      ctx.reply("✅ تمت الإذاعة للخاص.");
-    }
-    delete db.sudoMode;
-    return;
-  }
-
-  // زخرفة ذكية باستخدام AI
-  if (ctx.message.text?.startsWith('زخرف ')) {
-    const name = ctx.message.text.replace('زخرف ', '');
-    const res = await aiClient.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `قم بزخرفة هذا الاسم بـ 5 أشكال احترافية عربية: ${name}`
-    });
-    return ctx.reply(res.text || name);
-  }
-
-  return next();
-});
-
-// --- الردود العشوائية ---
-bot.hears(['هلو', 'سلام'], (ctx) => ctx.reply("هلووات 😊🌹"));
-bot.hears('انجب', (ctx) => ctx.reply("حاضر تاج راسي انجبيت 😇"));
-bot.hears('السفاح المصري', (ctx) => ctx.reply("نعم حبي 😎.. امرني؟"));
 
 // --- الويب هوك ---
 export default async (req, res) => {
@@ -277,9 +245,9 @@ export default async (req, res) => {
       await bot.handleUpdate(req.body);
       res.status(200).send('OK');
     } catch (err) {
-      res.status(500).send('Webhook Error');
+      res.status(500).send('Error');
     }
   } else {
-    res.status(200).send(`Guardia AI Pro Active | Sudo: ${SUDO_ID}`);
+    res.status(200).send(`Guardia AI Online | Sudo: ${SUDO_ID}`);
   }
 };
