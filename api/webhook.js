@@ -1,72 +1,84 @@
-Enter
+
 const { Telegraf } = require('telegraf');
 const { GoogleGenAI } = require('@google/genai');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
-const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// إعداد الذكاء الاصطناعي وفقاً للقواعد الجديدة
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// تهيئة نموذج الذكاء الاصطناعي
-const model = genAI.models.getGenerativeModel({ 
-  model: "gemini-1.5-flash",
-  systemInstruction: "أنت Guardia AI، بوت حماية ومساعد ذكي لمجموعات تلجرام. ردك يجب أن يكون باللغة العربية، ودوداً ومختصراً. مهمتك حماية المجموعة والرد على استفسارات الأعضاء."
-});
+// أمر البدء للتأكد من أن البوت متصل
+bot.start((ctx) => ctx.reply('أهلاً بك! أنا Guardia AI. أنا أعمل الآن ومستعد لحماية المجموعة. 🛡️\n\nتأكد من إيقاف "Privacy Mode" من @BotFather لتفعيل الرد التلقائي على كلمة "بوت".'));
 
-// 1. حماية الروابط
+// أمر المساعدة
+bot.help((ctx) => ctx.reply('يمكنني القيام بـ:\n1. حذف الروابط تلقائياً.\n2. الرد على استفساراتكم بالذكاء الاصطناعي (فقط اكتب كلمة "بوت" في رسالتك).'));
+
+// 1. نظام حماية الروابط
 bot.on('text', async (ctx, next) => {
   const text = ctx.message.text;
   const entities = ctx.message.entities || [];
   
+  // فحص إذا كانت الرسالة تحتوي على رابط
   const hasLink = entities.some(e => e.type === 'url' || e.type === 'text_link');
   
   if (hasLink) {
     try {
-      await ctx.deleteMessage();
-      await ctx.reply(`عذراً يا @${ctx.from.username || ctx.from.first_name}، يمنع إرسال الروابط في هذه المجموعة لحماية الأعضاء. 🛡️`);
-      return; // توقف هنا ولا تكمل للذكاء الاصطناعي
+      // محاولة حذف الرسالة
+      await ctx.deleteMessage().catch(() => console.log("Missing delete permissions"));
+      await ctx.reply(`عذراً يا ${ctx.from.first_name || 'عزيزي'}، يمنع إرسال الروابط هنا. 🛡️`);
+      return; // توقف هنا
     } catch (e) {
-      console.error("Permission error: Could not delete message", e);
+      console.error("Error in link protection:", e);
     }
   }
-  return next();
+  return next(); // انتقل للمرحلة التالية (الذكاء الاصطناعي)
 });
 
-// 2. الرد الذكي بالذكاء الاصطناعي
+// 2. نظام الرد الذكي
 bot.on('message', async (ctx) => {
-  if (!ctx.message.text) return;
+  if (!ctx.message || !ctx.message.text) return;
 
-  const isReplyToBot = ctx.message.reply_to_message && ctx.message.reply_to_message.from.id === ctx.botInfo.id;
-  const isMentioned = ctx.message.text.includes(`@${ctx.botInfo.username}`) || ctx.message.text.toLowerCase().includes('بوت');
+  const text = ctx.message.text.toLowerCase();
+  
+  // شروط الرد: كلمة "بوت" أو الرد على رسالة البوت أو منشن للبوت
+  const isReplyToBot = ctx.message.reply_to_message && ctx.message.reply_to_message.from.id === ctx.botInfo?.id;
+  const mentionsBot = text.includes('بوت') || (ctx.botInfo && text.includes(`@${ctx.botInfo.username.toLowerCase()}`));
 
-  if (isReplyToBot || isMentioned) {
+  if (isReplyToBot || mentionsBot) {
     try {
-      // إرسال حالة "جاري الكتابة"
+      // إرسال حالة "جاري الكتابة" لإعطاء انطباع طبيعي
       await ctx.sendChatAction('typing');
       
-      const prompt = `العضو ${ctx.from.first_name} يقول: ${ctx.message.text}`;
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      
-      await ctx.reply(response.text(), {
-        reply_to_message_id: ctx.message.message_id
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `المستخدم ${ctx.from.first_name} يقول: ${ctx.message.text}`,
+        config: {
+          systemInstruction: "أنت Guardia AI، بوت حماية ومساعد ذكي لمجموعات تلجرام. ردك يجب أن يكون باللغة العربية، ودوداً جداً ومختصراً. أنت صديق للأعضاء ومسؤول عن أمن المجموعة.",
+        },
       });
+
+      const replyText = response.text;
+      if (replyText) {
+        await ctx.reply(replyText, {
+          reply_to_message_id: ctx.message.message_id
+        });
+      }
     } catch (error) {
       console.error("Gemini Error:", error);
-      await ctx.reply("عذراً، واجهت مشكلة في معالجة طلبك حالياً.");
     }
   }
 });
 
-// التصدير ليعمل كـ Vercel Serverless Function
+// معالج Vercel
 module.exports = async (req, res) => {
-  if (req.method === 'POST') {
-    try {
+  try {
+    if (req.method === 'POST') {
       await bot.handleUpdate(req.body);
       res.status(200).send('OK');
-    } catch (err) {
-      console.error(err);
-      res.status(500).send('Error');
+    } else {
+      res.status(200).send('Guardia AI is Online and Protected.');
     }
-  } else {
-    res.status(200).send('Bot is running...');
+  } catch (err) {
+    console.error("Webhook Error:", err);
+    res.status(500).send('Internal Server Error');
   }
 };
