@@ -3,14 +3,13 @@
 
 بوت حماية متطور يعمل بالذكاء الاصطناعي، جاهز للرفع على Vercel.
 
-## خطوات التشغيل:
+## خطوات التشغيل الهامة:
 1. ارفع الكود على Vercel.
-2. أضف `TELEGRAM_BOT_TOKEN` من @BotFather.
-3. أضف `API_KEY` من [Google AI Studio](https://aistudio.google.com/).
-4. قم بضبط الويب هوك الخاص بك عن طريق زيارة هذا الرابط في المتصفح:
-   `https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<YOUR_VERCEL_DOMAIN>/api/webhook`
+2. أضف `TELEGRAM_BOT_TOKEN` و `API_KEY` في Environment Variables.
+3. **خطوة حاسمة**: يجب تفعيل الويب هوك يدوياً مرة واحدة بزيارة الرابط التالي في متصفحك:
+   `https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<YOUR_PROJECT_NAME>.vercel.app/api/webhook`
 
 ## الميزات:
-- منع الروابط (Anti-Link).
-- رد ذكي باستخدام Gemini 1.5 Flash.
-- يدعم الردود على الرسائل (Replies) والإشارات (Mentions).
+- حماية ضد الروابط والتصفية.
+- أوامر البحث الديني بالذكاء الاصطناعي (م1).
+- أوامر التحكم (م2، م3، م4).
