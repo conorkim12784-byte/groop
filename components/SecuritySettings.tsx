@@ -1,17 +1,16 @@
 
 import React from 'react';
 import { 
-  ShieldCheck, 
   Link2Off, 
   MessageCircleOff, 
   Zap, 
   UserPlus, 
-  AlertTriangle,
-  Save,
   Image,
   Video,
   FileText,
-  Repeat
+  Repeat,
+  Save,
+  ShieldCheck
 } from 'lucide-react';
 import { SecurityConfig } from '../types';
 
@@ -21,9 +20,9 @@ interface SecuritySettingsProps {
 }
 
 const SettingsToggle = ({ title, description, icon: Icon, active, onChange }: any) => (
-  <div className="flex items-center justify-between p-6 bg-slate-900 border border-slate-800 rounded-3xl hover:border-slate-700 transition-all">
+  <div className="flex items-center justify-between p-6 bg-slate-900 border border-slate-800 rounded-3xl hover:border-slate-700 transition-all shadow-lg">
     <div className="flex gap-4">
-      <div className={`p-4 rounded-2xl ${active ? 'bg-blue-500/10 text-blue-500' : 'bg-slate-800 text-slate-500'}`}>
+      <div className={`p-4 rounded-2xl ${active ? 'bg-blue-500/10 text-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-slate-800 text-slate-500'}`}>
         <Icon size={24} />
       </div>
       <div>
@@ -52,57 +51,60 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = ({ config, setConfig }
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-700">
       <header className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-white mb-2">إدارة أقفال المجموعة (م2)</h2>
-          <p className="text-slate-400">تحكم في ما يسمح بإرساله داخل مجموعتك.</p>
+          <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-3">
+            <ShieldCheck className="text-blue-500" />
+            إدارة أقفال المجموعة م3
+          </h2>
+          <p className="text-slate-400">تحكم كامل في ميزات الأمان لـ {config.antiLink ? 'المجموعة مؤمنة' : 'المجموعة غير مؤمنة حالياً'}.</p>
         </div>
-        <button className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-xl shadow-blue-600/20">
+        <button className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-xl shadow-blue-600/20 active:scale-95 transition-all">
           <Save size={20} />
-          تحديث الإعدادات
+          حفظ التغييرات
         </button>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <SettingsToggle
           title="قفل الروابط"
-          description="منع إرسال أي روابط خارجية للمجموعة."
+          description="سيقوم البوت بحذف أي روابط ترسل في المجموعة فوراً."
           icon={Link2Off}
           active={config.antiLink}
           onChange={() => toggleSetting('antiLink')}
         />
         <SettingsToggle
-          title="قفل التكرار (Anti-Spam)"
-          description="حذف الرسائل المتكررة وحماية المجموعة."
+          title="قفل التكرار"
+          description="حماية المجموعة من هجمات السبام والرسائل المتكررة."
           icon={Repeat}
           active={config.antiSpam}
           onChange={() => toggleSetting('antiSpam')}
         />
         <SettingsToggle
           title="قفل الصور"
-          description="منع إرسال الصور في المجموعة."
+          description="منع إرسال الصور لغير المسؤولين (مطلوب رتبة ادمن)."
           icon={Image}
-          active={false} // تجريبي
+          active={true}
           onChange={() => {}}
         />
         <SettingsToggle
-          title="قفل الفيديوهات"
-          description="منع إرسال المقاطع المرئية."
-          icon={Video}
-          active={false} // تجريبي
-          onChange={() => {}}
+          title="قفل التوجيه"
+          description="منع إعادة توجيه الرسائل من قنوات أو مجموعات أخرى."
+          icon={Repeat}
+          active={config.antiForward}
+          onChange={() => toggleSetting('antiForward')}
         />
         <SettingsToggle
-          title="الرد الذكي (AI)"
-          description="تفعيل م1: البحث الديني والرد التلقائي."
+          title="الرد الذكي AI"
+          description="تفعيل م1: البحث الديني والرد التلقائي عبر Gemini."
           icon={Zap}
           active={config.aiResponse}
           onChange={() => toggleSetting('aiResponse')}
         />
         <SettingsToggle
-          title="الترحيب والمغادرة"
-          description="إرسال رسائل عند دخول أعضاء جدد."
+          title="الترحيب بالأعضاء"
+          description="إرسال رسالة ترحيب مخصصة عند انضمام عضو جديد."
           icon={UserPlus}
           active={config.welcomeMessage}
           onChange={() => toggleSetting('welcomeMessage')}
