@@ -10,172 +10,213 @@ const DEV_CHANNEL = "https://t.me/FY_TF";
 const BOT_NAME = "سـيـلا";
 const START_IMAGE = 'https://i.postimg.cc/wxV3PspQ/1756574872401.gif';
 
-// قاعدة بيانات وهمية (يجب استبدالها بـ MongoDB للإنتاج)
 let db = {
-  globalRanks: { [DEVELOPER_ID]: 'DEV' },
-  groups: {}, // { chatId: { settings: {}, localRanks: {} } }
-  pendingActions: {} // لحفظ الحالات المؤقتة (مثل اختيار العقوبة)
+  users: {}, // رتب البوت العامة
+  groups: {}, // إعدادات المجموعات ورتب البوت المحلية
+  tempActions: {} // لتخزين الحالات المؤقتة (الرفع، اللقب، الصلاحيات)
 };
 
 // --- المساعدات (Helpers) ---
-const getUserRank = (userId, chatId) => {
-  if (Number(userId) === DEVELOPER_ID) return { label: '👑 المطور الأساسي', level: 10 };
-  if (db.globalRanks[userId]) return { label: `🌐 ${db.globalRanks[userId]} (عام)`, level: 5 };
-  if (chatId && db.groups[chatId]?.localRanks?.[userId]) {
-    return { label: `🛡️ ${db.groups[chatId].localRanks[userId]} (محلي)`, level: 3 };
-  }
-  return { label: '👤 عضو', level: 0 };
+const getUserPerms = (userId, chatId) => {
+  if (Number(userId) === DEVELOPER_ID) return ['ALL'];
+  const global = db.users[userId]?.perms || [];
+  const local = (chatId && db.groups[chatId]?.localRanks?.[userId]) || [];
+  return [...new Set([...global, ...local])];
 };
 
-const can = (userId, chatId, minLevel) => getUserRank(userId, chatId).level >= minLevel;
+const hasPerm = (userId, chatId, perm) => {
+  const perms = getUserPerms(userId, chatId);
+  return perms.includes('ALL') || perms.includes(perm);
+};
+
+// --- قائمة الأوامر المتاحة ---
+const COMMANDS_LIST = `
+≡ *قائمة أوامر بوت ${BOT_NAME}* 🛡️
+
+*🛡️ أوامر الحماية (للمشرفين):*
+- قفل [الصور/الروابط/الملصقات/التوجيه] 
+- فتح [الصور/الروابط/الملصقات/التوجيه]
+- كشف (بالرد): لتحليل رسالة بالذكاء الاصطناعي.
+
+*👮 أوامر الرتب (للمطور):*
+- رفع [اسم الرتبة] (بالرد): لرفع رتبة في البوت.
+- رفع مشرف (بالرد): لرفع مشرف رسمي في المجموعة بصلاحيات ولقب.
+- تنزيل (بالرد): لتنزيل رتبة البوت.
+- تنزيل الكل (بالرد): لتنزيل كافة الرتب (البوت + المشرف).
+
+*🎮 أوامر التسلية:*
+- صراحه ، لغز ، لو خيروك.
+- قل [نص]: لجعل البوت يتحدث.
+`;
 
 // --- لوحات المفاتيح ---
-const getPrivateMenu = () => Markup.inlineKeyboard([
-  [Markup.button.callback('‹ شرح وطريقة العمل ›', 'show_guide')],
-  [Markup.button.callback('‹ أوامر الحماية ›', 'menu_cmds')],
-  [Markup.button.url('‹ قناة المطور ›', DEV_CHANNEL), Markup.button.callback('‹ المطور ›', 'dev_info')],
-  [Markup.button.url('‹ أضف البوت لمجموعتك ›', `https://t.me/${bot.botInfo?.username || 'SilaBot'}?startgroup=true`)]
-]);
-
 const getGroupMenu = () => Markup.inlineKeyboard([
   [Markup.button.callback('🛡️ الحماية', 'cmds_shield'), Markup.button.callback('👮 الرتب', 'cmds_ranks')],
+  [Markup.button.callback('📋 قائمة الأوامر', 'show_all_cmds')],
   [Markup.button.callback('⚙️ الإعدادات', 'group_settings'), Markup.button.callback('🎮 التسلية', 'cmds_extra')]
 ]);
 
-// --- التعامل مع البداية (Private vs Group) ---
+// --- الأوامر الأساسية ---
 bot.start(async (ctx) => {
   if (ctx.chat.type === 'private') {
     return ctx.replyWithAnimation(START_IMAGE, {
-      caption: `≡ اهلا بك في بوت ${BOT_NAME} 🛡️\n\nبوت متطور لحماية مجموعتك من (الروابط، السبام، الإساءة) بدعم الذكاء الاصطناعي.\n\nاستخدم الأزرار بالأسفل لاستكشاف المميزات 👇`,
-      ...getPrivateMenu()
+      caption: `≡ اهلا بك في بوت ${BOT_NAME} 🛡️\n\n- البوت الأقوى لإدارة مجموعتك.\n- دعم "رفع مشرفين" بصلاحيات كاملة.\n- ذكاء اصطناعي متكامل.\n\n≡ استكشف الأوامر عبر القائمة 👇`,
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('‹ الأوامر ›', 'menu_cmds')],
+        [Markup.button.url('‹ قناة المطور ›', DEV_CHANNEL)],
+        [Markup.button.callback('‹ المطور ›', 'dev_info')]
+      ])
     });
   }
-  // في المجموعات، لا يرد على /start لجعل المحادثة نظيفة
 });
 
-// استجابة لأمر "الاوامر" في المجموعات
 bot.hears(['الاوامر', 'أوامر', 'تفعيل'], (ctx) => {
   if (ctx.chat.type === 'private') return;
-  if (!can(ctx.from.id, ctx.chat.id, 2)) return ctx.reply("⚠️ هذا الأمر للمشرفين فقط.");
-  ctx.reply(`≡ قائمة التحكم في مجموعة: ${ctx.chat.title}\n⚡ اختر القسم المطلوب:`, getGroupMenu());
-});
-
-// --- أوامر القفل (العقوبات المتدرجة) ---
-const lockItems = ['الصور', 'الروابط', 'الفيديو', 'الملصقات', 'التوجيه'];
-lockItems.forEach(item => {
-  bot.hears(`قفل ${item}`, (ctx) => {
-    if (!can(ctx.from.id, ctx.chat.id, 3)) return;
-    ctx.reply(`🛡️ تم رصد طلب قفل (${item}).\nاختر نوع العقوبة التي تريد تطبيقها على المخالفين:`, 
-      Markup.inlineKeyboard([
-        [Markup.button.callback('🗑️ حذف فقط', `punish_${item}_del`)],
-        [Markup.button.callback('🚫 حذف + تقييد', `punish_${item}_mute`)],
-        [Markup.button.callback('🚷 حذف + حظر', `punish_${item}_ban`)]
-      ])
-    );
+  ctx.replyWithAnimation(START_IMAGE, {
+    caption: `≡ قائمة التحكم في المجموعة: *${ctx.chat.title}*\n⚡ اختر القسم المطلوب للتعديل:`,
+    parse_mode: 'Markdown',
+    ...getGroupMenu()
   });
 });
 
-// --- نظام الرتب (عام / محلي) ---
-bot.hears(/^رفع (.*)$/, (ctx) => {
-  if (!ctx.message.reply_to_message) return ctx.reply("⚠️ قم بالرد على المستخدم لرفعه.");
-  if (!can(ctx.from.id, ctx.chat.id, 5)) return ctx.reply("⚠️ صلاحياتك لا تسمح برفع الرتب.");
-  
-  const role = ctx.match[1];
+// --- رفع مشرف رسمي (Telegram Admin) ---
+bot.hears('رفع مشرف', (ctx) => {
+  if (!ctx.message.reply_to_message) return ctx.reply("⚠️ قم بالرد على المستخدم لرفعه كمشرف.");
+  // يجب أن يكون الشخص الذي يرفع هو المطور أو مالك المجموعة
+  if (!hasPerm(ctx.from.id, ctx.chat.id, 'ALL')) return ctx.reply("⚠️ هذا الأمر للمطور فقط.");
+
   const targetId = ctx.message.reply_to_message.from.id;
   const targetName = ctx.message.reply_to_message.from.first_name;
 
-  ctx.reply(`🛠️ تريد رفع ${targetName} لرتبة (${role}).\nحدد نطاق الصلاحية:`,
-    Markup.inlineKeyboard([
-      [Markup.button.callback('🌐 رفع عام (بكل المجموعات)', `rank_global_${targetId}_${role}`)],
-      [Markup.button.callback('📍 رفع محلي (هنا فقط)', `rank_local_${targetId}_${role}`)]
+  db.tempActions[targetId] = {
+    type: 'official_admin',
+    perms: { 
+      can_delete_messages: true, 
+      can_restrict_members: false, 
+      can_promote_members: false,
+      can_change_info: false,
+      can_pin_messages: true
+    },
+    title: 'مشرف'
+  };
+
+  ctx.reply(`👮 رفع مشرف رسمي: *${targetName}*\n\nاختر الصلاحيات واللقب:`, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback(`${db.tempActions[targetId].perms.can_delete_messages ? '✅' : '❌'} حذف الرسائل`, `tg_perm_${targetId}_can_delete_messages`)],
+      [Markup.button.callback(`${db.tempActions[targetId].perms.can_restrict_members ? '✅' : '❌'} حظر/كتم`, `tg_perm_${targetId}_can_restrict_members`)],
+      [Markup.button.callback(`${db.tempActions[targetId].perms.can_pin_messages ? '✅' : '❌'} تثبيت الرسائل`, `tg_perm_${targetId}_can_pin_messages`)],
+      [Markup.button.callback(`${db.tempActions[targetId].perms.can_change_info ? '✅' : '❌'} تغيير المعلومات`, `tg_perm_${targetId}_can_change_info`)],
+      [Markup.button.callback(`🏷️ اللقب: ${db.tempActions[targetId].title}`, `tg_set_title_${targetId}`)],
+      [Markup.button.callback('🚀 إتمام الرفع الرسمي', `tg_confirm_admin_${targetId}`)]
     ])
+  });
+});
+
+// --- معالجة الصلاحيات الرسمية (Actions) ---
+bot.action(/tg_perm_(.*)_(.*)/, (ctx) => {
+  const targetId = ctx.match[1];
+  const perm = ctx.match[2];
+  if (!db.tempActions[targetId]) return ctx.answerCbQuery("انتهت الجلسة.");
+  
+  db.tempActions[targetId].perms[perm] = !db.tempActions[targetId].perms[perm];
+  
+  ctx.editMessageReplyMarkup(
+    Markup.inlineKeyboard([
+      [Markup.button.callback(`${db.tempActions[targetId].perms.can_delete_messages ? '✅' : '❌'} حذف الرسائل`, `tg_perm_${targetId}_can_delete_messages`)],
+      [Markup.button.callback(`${db.tempActions[targetId].perms.can_restrict_members ? '✅' : '❌'} حظر/كتم`, `tg_perm_${targetId}_can_restrict_members`)],
+      [Markup.button.callback(`${db.tempActions[targetId].perms.can_pin_messages ? '✅' : '❌'} تثبيت الرسائل`, `tg_perm_${targetId}_can_pin_messages`)],
+      [Markup.button.callback(`${db.tempActions[targetId].perms.can_change_info ? '✅' : '❌'} تغيير المعلومات`, `tg_perm_${targetId}_can_change_info`)],
+      [Markup.button.callback(`🏷️ اللقب: ${db.tempActions[targetId].title}`, `tg_set_title_${targetId}`)],
+      [Markup.button.callback('🚀 إتمام الرفع الرسمي', `tg_confirm_admin_${targetId}`)]
+    ]).reply_markup
   );
-});
-
-bot.hears('تنزيل الكل', (ctx) => {
-  if (!ctx.message.reply_to_message) return;
-  if (!can(ctx.from.id, ctx.chat.id, 5)) return;
-  const targetId = ctx.message.reply_to_message.from.id;
-  delete db.globalRanks[targetId];
-  if (db.groups[ctx.chat.id]) delete db.groups[ctx.chat.id].localRanks[targetId];
-  ctx.reply("❌ تم تنزيل المستخدم من كافة الرتب (العامة والمحلية).");
-});
-
-// --- الأكشنز (Callback Queries) ---
-bot.action('dev_info', (ctx) => {
   ctx.answerCbQuery();
-  ctx.reply(`👑 مـعـلـومـات الـمـطـور:\n\n• الاسـم: أحـمـد\n• الأي دي: ${DEVELOPER_ID}\n• الـقـنـاة: @FY_TF\n\nيمكنك مراسلته لأي استفسار أو طلب بوت مخصص.`, 
-    Markup.inlineKeyboard([[Markup.button.callback('العودة', 'menu_main_pv')]]));
 });
 
-bot.action(/punish_(.*)_(.*)/, (ctx) => {
-  const item = ctx.match[1];
-  const type = ctx.match[2];
-  if (!db.groups[ctx.chat.id]) db.groups[ctx.chat.id] = { settings: {}, localRanks: {} };
-  db.groups[ctx.chat.id].settings[item] = type;
-  ctx.editMessageText(`✅ تم قفل (${item}) بنجاح.\nنوع العقوبة: ${type === 'del' ? 'حذف فقط' : type === 'mute' ? 'حذف وتقييد' : 'حذف وحظر'}`);
+bot.action(/tg_set_title_(.*)/, (ctx) => {
+  const targetId = ctx.match[1];
+  ctx.reply("✏️ أرسل الآن اللقب الجديد للمشرف (مثال: الحوت، الزعيم):");
+  db.tempActions[targetId].waitingForTitle = true;
+  ctx.answerCbQuery();
 });
 
-bot.action(/rank_(global|local)_(.*)_(.*)/, (ctx) => {
-  const scope = ctx.match[1];
-  const targetId = ctx.match[2];
-  const role = ctx.match[3];
-  
-  if (scope === 'global') db.globalRanks[targetId] = role;
-  else {
-    if (!db.groups[ctx.chat.id]) db.groups[ctx.chat.id] = { settings: {}, localRanks: {} };
-    db.groups[ctx.chat.id].localRanks[targetId] = role;
-  }
-  ctx.editMessageText(`✅ تم الرفع بنجاح!\nالمستخدم أصبح (${role}) ${scope === 'global' ? 'عام' : 'في هذه المجموعة'}.`);
-});
+bot.action(/tg_confirm_admin_(.*)/, async (ctx) => {
+  const targetId = ctx.match[1];
+  const data = db.tempActions[targetId];
+  if (!data) return;
 
-// --- الألعاب بالذكاء الاصطناعي ---
-bot.hears(['صراحه', 'لو خيروك', 'لغز'], async (ctx) => {
-  const type = ctx.message.text;
-  await ctx.sendChatAction('typing');
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `اسألني ${type} جديد وغير مكرر بلهجة مصرية مضحكة جداً للمجموعات.`,
-      config: { maxOutputTokens: 100 }
+    // رفع العضو كمشرف رسمياً في التلجرام
+    await ctx.promoteChatMember(targetId, {
+      is_anonymous: false,
+      can_manage_chat: true,
+      ...data.perms
     });
-    ctx.reply(`🎮 *تحدي ${type}:*\n\n${response.text}`, { parse_mode: 'Markdown' });
+    // تعيين اللقب
+    await ctx.setChatAdministratorCustomTitle(targetId, data.title);
+    
+    ctx.editMessageText(`✅ تم رفع المستخدم كمشرف رسمي في المجموعة!\nاللقب: ${data.title}\nالصلاحيات: [مخصصة]`);
+    delete db.tempActions[targetId];
   } catch (e) {
-    ctx.reply("الذكاء الاصطناعي مشغول، جرب تاني كمان شوية!");
+    ctx.reply("❌ خطأ: تأكد أن البوت يمتلك صلاحية (إضافة مشرفين) لرفع غيره.");
   }
 });
 
-// --- معالج الرسائل للحماية ---
-bot.on('message', async (ctx, next) => {
-  if (ctx.chat.type === 'private') return next();
+// --- تنزيل الكل ---
+bot.hears(['تنزيل الكل', 'تنزيل مشرف'], async (ctx) => {
+  if (!ctx.message.reply_to_message) return;
+  if (!hasPerm(ctx.from.id, ctx.chat.id, 'ALL')) return;
   
-  const text = ctx.message.text || '';
-  const settings = db.groups[ctx.chat.id]?.settings || {};
+  const targetId = ctx.message.reply_to_message.from.id;
   
-  // مثال: حماية الروابط
-  if (settings['الروابط'] && (text.includes('http') || text.includes('t.me')) && !can(ctx.from.id, ctx.chat.id, 2)) {
-    const type = settings['الروابط'];
-    try {
-      await ctx.deleteMessage();
-      if (type === 'mute') await ctx.restrictChatMember(ctx.from.id, { permissions: { can_send_messages: false } });
-      if (type === 'ban') await ctx.banChatMember(ctx.from.id);
-    } catch(e) {}
-    return;
+  try {
+    // تنزيل من المشرفين الرسميين
+    await ctx.promoteChatMember(targetId, {
+      can_manage_chat: false,
+      can_delete_messages: false,
+      can_restrict_members: false,
+      can_promote_members: false,
+      can_change_info: false,
+      can_invite_users: false,
+      can_pin_messages: false,
+      can_manage_video_chats: false,
+      is_anonymous: false
+    });
+    
+    // تنزيل من رتب البوت
+    if (db.users[targetId]) delete db.users[targetId];
+    if (db.groups[ctx.chat.id]?.localRanks[targetId]) delete db.groups[ctx.chat.id].localRanks[targetId];
+
+    ctx.reply("❌ تم تنزيله من كافة الرتب (رتبة البوت + رتبة المشرف الرسمية).");
+  } catch(e) {
+    ctx.reply("تم تنزيل رتب البوت، ولكن واجهت مشكلة في تنزيله من رتب التلجرام الرسمية.");
   }
-  
-  // الرد الذكي إذا ذكر اسم البوت
-  if (text.includes('بوت') || text.includes(BOT_NAME)) {
+});
+
+bot.action('show_all_cmds', (ctx) => {
+  ctx.answerCbQuery();
+  ctx.reply(COMMANDS_LIST, { parse_mode: 'Markdown' });
+});
+
+// --- استكمال تعيين اللقب بالنص ---
+bot.on('text', async (ctx, next) => {
+  const targetId = Object.keys(db.tempActions).find(id => db.tempActions[id].waitingForTitle);
+  if (targetId && ctx.message.reply_to_message) {
+    db.tempActions[targetId].title = ctx.message.text;
+    db.tempActions[targetId].waitingForTitle = false;
+    return ctx.reply(`✅ تم تحديد اللقب كـ (${ctx.message.text}). يمكنك الآن الضغط على "إتمام الرفع الرسمي" في الرسالة السابقة.`);
+  }
+
+  // الرد الذكي
+  if (ctx.message.text.includes(BOT_NAME) || ctx.message.text.includes('بوت')) {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: text,
-      config: { 
-        systemInstruction: `أنت ${BOT_NAME}، بوت حماية وتسلية. مطورك هو أحمد. رد بذكاء وخفة دم مصرية.`,
-        maxOutputTokens: 150 
-      }
+      contents: ctx.message.text,
+      config: { systemInstruction: `أنت ${BOT_NAME}، بوت حماية ومرح. مطورك أحمد @FY_TF.` }
     });
     ctx.reply(response.text, { reply_to_message_id: ctx.message.message_id });
   }
-  
   return next();
 });
 
@@ -184,6 +225,6 @@ module.exports = async (req, res) => {
     await bot.handleUpdate(req.body);
     res.status(200).send('OK');
   } else {
-    res.status(200).send('Guardia Pro AI is Active');
+    res.status(200).send('Bot is active');
   }
 };
