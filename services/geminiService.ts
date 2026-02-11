@@ -9,12 +9,7 @@ export const checkIsToxic = async (message: string) => {
       model: 'gemini-3-flash-preview',
       contents: message,
       config: {
-        systemInstruction: `You are an expert moderator specialized in Egyptian Arabic. 
-        Detect toxicity including:
-        - Common Egyptian family insults.
-        - Sexual slang (innuendos).
-        - Aggressive street bullying.
-        Respond in JSON.`,
+        systemInstruction: `Analyze for toxicity in Egyptian Arabic. Respond in JSON.`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -39,11 +34,11 @@ export const getAIResponse = async (message: string) => {
       model: 'gemini-3-flash-preview',
       contents: message,
       config: {
-        systemInstruction: "You are Guardia AI. A professional, smart Telegram moderator. Respond in Arabic (Egyptian flavor). Mention the developer MoSalem if asked.",
+        systemInstruction: "You are Guardia AI. A professional Telegram moderator. Respond concisely in Arabic/Egyptian.",
       }
     });
     return response.text || "أنا هنا لحمايتكم.";
   } catch (error) {
-    return "عذراً، أنا مشغول حالياً بحماية المجموعة.";
+    return "عذراً، واجهت مشكلة تقنية بسيطة.";
   }
 };
