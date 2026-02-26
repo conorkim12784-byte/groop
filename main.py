@@ -54,67 +54,8 @@ def login_password(number, password):
         return {}
 
 def login_data(client_ip=None):
-    headers = {
-        "User-Agent": "okhttp/4.12.0",
-        "Connection": "Keep-Alive",
-        "x-agent-operatingsystem": "13",
-        "clientId": "AnaVodafoneAndroid",
-        "Accept-Language": "ar",
-        "x-agent-device": "Xiaomi 21061119AG",
-        "x-agent-version": "2025.10.3",
-        "x-agent-build": "1050",
-        "digitalId": "28RI9U7ISU8SW",
-        "device-id": "1df4efae59648ac3",
-    }
-    if client_ip:
-        headers["X-Forwarded-For"] = client_ip
-        headers["X-Real-IP"] = client_ip
-
-    try:
-        r1 = req.get(
-            "http://mobile.vodafone.com.eg/checkSeamless/realms/vf-realm/protocol/openid-connect/auth",
-            params={"client_id": "cash-app"},
-            headers=headers, timeout=20, verify=False
-        )
-        s1 = r1.json()
-    except Exception as e:
-        return {"_error": f"step1: {e}"}
-
-    if "seamlessToken" not in s1 or "msisdn" not in s1:
-        return {"_error": "no_seamless", "_raw": s1}
-
-    number = "0" + str(s1["msisdn"])
-    fox = s1["seamlessToken"]
-
-    try:
-        r2 = req.post(
-            "https://mobile.vodafone.com.eg/auth/realms/vf-realm/protocol/openid-connect/token",
-            data={
-                "grant_type": "password",
-                "client_secret": "b86e30a8-ae29-467a-a71f-65c73f2ff5e3",
-                "client_id": "cash-app",
-            },
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/json, text/plain, */*",
-                "User-Agent": "okhttp/4.12.0",
-                "silentLogin": "true", "CRP": "false",
-                "seamlessToken": fox, "firstTimeLogin": "true",
-                "x-agent-operatingsystem": "13", "clientId": "AnaVodafoneAndroid",
-                "Accept-Language": "ar", "x-agent-device": "Xiaomi 21061119AG",
-                "x-agent-version": "2025.10.3", "x-agent-build": "1050",
-                "digitalId": "", "device-id": "1df4efae59648ac3",
-            },
-            timeout=20, verify=False
-        )
-        data = r2.json()
-    except Exception as e:
-        return {"_error": f"step2: {e}"}
-
-    if "access_token" in data:
-        data["_number"] = number
-        return data
-    return {"_error": "no_token", "_raw": data}
+    # لوجين الداتا مش بيشتغل من سيرفر خارجي — فودافون بتبلوك أي طلب مش من شبكتها
+    return {"_error": "لوجين الداتا يشتغل بس من موبايل على شبكة فودافون مباشرة — استخدم الرقم والباسورد"}
 
 def get_promos(token, number):
     try:
@@ -386,16 +327,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
     {% endif %}
 
-    <div class="seg">
-        <button class="seg-btn on" id="TAB_PASS" onclick="switchTab('pass')">
-            <i class="fas fa-lock"></i> رقم وباسورد
-        </button>
-        <button class="seg-btn" id="TAB_DATA" onclick="switchTab('data')">
-            <i class="fas fa-wifi"></i> بيانات الجهاز
-        </button>
-    </div>
-
-    <form method="POST" action="/login" id="FORM_PASS" class="lp-form show">
+    <form method="POST" action="/login" id="FORM_PASS" class="lp-form show" style="display:flex">
         <input type="hidden" name="method" value="password">
         <div class="inp-group">
             <div class="inp-row">
@@ -418,20 +350,6 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
             <span>تسجيل الدخول</span>
         </button>
     </form>
-
-    <div id="FORM_DATA" class="lp-form">
-        <div class="data-info">
-            <div class="data-info-ico"><i class="fas fa-tower-broadcast"></i></div>
-            <div class="data-info-txt">
-                <strong>تسجيل الدخول بداتا الجهاز</strong>
-                <p>تأكد إن الداتا شغالة على الخط. السيستم هيجيب بياناتك تلقائياً من شبكة فودافون بدون ما تكتب حاجة.</p>
-            </div>
-        </div>
-        <button type="button" class="lp-btn data" id="BTN_DATA" onclick="doDataLogin()">
-            <i class="fas fa-signal"></i>
-            <span>دخول بالداتا</span>
-        </button>
-    </div>
 </div>
 
 {% else %}
