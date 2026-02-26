@@ -192,6 +192,7 @@ body {
   color: var(--text);
   min-height: 100vh;
   padding-bottom: 80px;
+  padding-top: 0;
 }
 
 /* ══ CANVAS BG ══ */
@@ -210,56 +211,55 @@ body::before {
 
 /* ══ BANNER ══ */
 .banner {
-  position: fixed; top:0; left:0; right:0; z-index: 100;
-  height: 70px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(8,8,8,0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border2);
+  position:fixed; top:0; left:0; right:0; height:95px;
+  background:#000;
+  display:flex; justify-content:center; align-items:center;
+  font-size:2.8rem; font-weight:900; letter-spacing:6px; text-transform:uppercase;
+  box-shadow:0 6px 40px rgba(0,0,0,0.8);
+  z-index:1000;
+  border-bottom-left-radius:60% 40%; border-bottom-right-radius:60% 40%;
+  overflow:hidden; gap:5px;
 }
-.banner-inner {
-  display: flex; align-items: center; gap: 14px;
+.banner::after {
+  content:''; position:absolute; bottom:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent);
 }
-.banner-logo {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 2rem; letter-spacing: 8px;
-  background: linear-gradient(135deg, #fff 0%, #888 40%, #fff 60%, #666 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: shimmer 6s ease-in-out infinite;
-  background-size: 300%;
+.banner span {
+  display:inline-block; color:transparent;
+  background:linear-gradient(90deg,#c0c0c0 0%,#fff 20%,#e0e0e0 40%,#fff 60%,#b0b0b0 80%,#c0c0c0 100%);
+  background-size:400% 100%;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  animation:chrome-shine 4s linear infinite;
+  animation-delay:calc(var(--i)*0.18s);
 }
-@keyframes shimmer { 0%,100%{background-position:0%} 50%{background-position:100%} }
-.banner-badge {
-  background: var(--red);
-  color: #fff;
-  font-size: 0.45rem;
-  font-weight: 900;
-  letter-spacing: 2px;
-  padding: 3px 8px;
-  border-radius: 100px;
-  text-transform: uppercase;
-}
-.banner-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 8px var(--green);
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-@keyframes pulse-dot { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.4);opacity:0.7} }
+@keyframes chrome-shine { 0%{background-position:400% center} 100%{background-position:-400% center} }
 
-/* ══ DECORATION ══ */
-.deco-bar {
-  position: fixed; top: 70px; left:0; right:0; height: 1px; z-index:99;
-  background: linear-gradient(90deg, transparent, var(--red), var(--gold), var(--red), transparent);
-  animation: bar-scan 4s linear infinite;
+/* ══ LOGO + GARLANDS ══ */
+.small-logo-under-banner {
+  position:fixed; top:100px; left:51%; transform:translateX(-50%);
+  z-index:999; margin-top:8px;
 }
-@keyframes bar-scan { 0%{opacity:0.3} 50%{opacity:1} 100%{opacity:0.3} }
+.small-logo-under-banner img {
+  width:38px; height:auto; display:block;
+  filter:drop-shadow(0 1px 4px rgba(0,0,0,0.6));
+}
+.ramadan-decoration {
+  position:fixed; top:85px; left:0; right:0; height:170px;
+  pointer-events:none; z-index:999;
+  display:flex; justify-content:space-between; align-items:flex-start; padding:0 2px;
+}
+.garland-left,.garland-right {
+  max-width:45%; max-height:100%; object-fit:contain;
+  filter:drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+}
+.garland-left  { animation:swing-left  24s infinite ease-in-out; transform-origin:top left; }
+.garland-right { animation:swing-right 26s infinite ease-in-out; transform-origin:top right; }
+@keyframes swing-left  { 0%,100%{transform:rotate(0deg)} 50%{transform:rotate(-1.5deg)} }
+@keyframes swing-right { 0%,100%{transform:rotate(0deg)} 50%{transform:rotate( 1.5deg)} }
 
 /* ══ LOGIN PAGE ══ */
 .login-wrap {
-  padding-top: 100px;
+  padding-top: 185px;
   display: flex; flex-direction: column; gap: 16px;
 }
 
@@ -334,48 +334,55 @@ body::before {
   display: flex; flex-direction: column; gap: 6px;
 }
 .field label {
-  font-size: 0.6rem; font-weight: 700; letter-spacing: 1.5px;
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 1.8px;
   text-transform: uppercase; color: var(--text3);
-  transition: color 0.2s;
+  transition: color 0.25s;
+  text-align: right; display: block;
 }
 .field:focus-within label { color: var(--red); }
 .input-wrap {
   position: relative; display: flex; align-items: center;
   background: var(--bg2);
   border: 1.5px solid var(--border);
-  border-radius: 12px;
-  transition: border-color 0.2s, box-shadow 0.2s;
-  overflow: hidden;
+  border-radius: 14px;
+  transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+  overflow: hidden; direction: rtl;
 }
-.input-wrap::before {
+.input-wrap::after {
   content:'';
-  position:absolute; bottom:0; left:0; right:0; height:2px;
-  background: linear-gradient(90deg, var(--red), var(--gold));
-  transform: scaleX(0); transform-origin: left;
-  transition: transform 0.3s ease;
+  position:absolute; bottom:0; right:0; left:0; height:2px;
+  background: linear-gradient(90deg, var(--gold), var(--red), var(--gold));
+  transform: scaleX(0); transform-origin: right;
+  transition: transform 0.35s cubic-bezier(.34,1.4,.64,1);
 }
-.field:focus-within .input-wrap::before { transform: scaleX(1); }
+.field:focus-within .input-wrap::after { transform: scaleX(1); }
 .field:focus-within .input-wrap {
   border-color: var(--border2);
-  box-shadow: 0 0 0 3px rgba(230,0,0,0.08);
+  background: rgba(230,0,0,0.04);
+  box-shadow: 0 0 0 3px rgba(230,0,0,0.07), 0 4px 16px rgba(0,0,0,0.3);
 }
+.input-wrap .inp-icon {
+  width: 46px; text-align: center;
+  font-size: 0.88rem; color: var(--text3);
+  transition: color 0.25s, transform 0.25s; flex-shrink: 0;
+  order: 2;
+}
+.field:focus-within .input-wrap .inp-icon { color: var(--red); transform: scale(1.15); }
 .input-wrap i {
-  width: 44px; text-align: center;
-  font-size: 0.85rem; color: var(--text3);
-  transition: color 0.2s; flex-shrink: 0;
+  width: 46px; text-align: center;
+  font-size: 0.88rem; color: var(--text3);
+  transition: color 0.25s; flex-shrink: 0; order: 2;
 }
 .field:focus-within .input-wrap i { color: var(--red); }
 .input-wrap input {
   flex:1; background:none; border:none; outline:none;
   font-family: 'Cairo', sans-serif;
-  font-size: 0.9rem; font-weight: 600; color: var(--text);
-  padding: 13px 14px 13px 0;
-  -webkit-user-select: text !important;
-  user-select: text !important;
+  font-size: 0.95rem; font-weight: 700; color: var(--text);
+  padding: 14px 16px 14px 14px;
+  text-align: right; direction: rtl; order: 1;
+  -webkit-user-select: text !important; user-select: text !important;
 }
-.input-wrap input::placeholder { color: var(--text3); font-weight: 400; font-size: 0.8rem; }
-
-/* submit btn */
+.input-wrap input::placeholder { color: var(--text3); font-weight: 400; font-size: 0.82rem; text-align: right; }
 .submit-btn {
   position: relative; overflow: hidden;
   display: flex; align-items: center; justify-content: center; gap: 10px;
@@ -407,7 +414,7 @@ body::before {
 .submit-btn span { position:relative; z-index:1; }
 
 /* ══ APP PAGE ══ */
-.app-wrap { padding-top: 90px; display:flex; flex-direction:column; gap:14px; }
+.app-wrap { padding-top: 185px; display:flex; flex-direction:column; gap:14px; }
 
 /* user bar */
 .user-bar {
@@ -644,14 +651,18 @@ body::before {
 
 <canvas id="BGC"></canvas>
 
-<nav class="banner">
-  <div class="banner-inner">
-    <div class="banner-logo">TALASHNY</div>
-    <span class="banner-badge">VF</span>
-    <div class="banner-dot"></div>
-  </div>
-</nav>
-<div class="deco-bar"></div>
+<div class="banner">
+    <span style="--i:0">Y</span><span style="--i:1">N</span><span style="--i:2">H</span>
+    <span style="--i:3">S</span><span style="--i:4">A</span><span style="--i:5">L</span>
+    <span style="--i:6">A</span><span style="--i:7">T</span>
+</div>
+<div class="small-logo-under-banner">
+    <img src="https://tlashane.serv00.net/vo/mS.png" alt="">
+</div>
+<div class="ramadan-decoration">
+    <img src="https://tlashane.serv00.net/vo/CRT.png" alt="" class="garland-left">
+    <img src="https://tlashane.serv00.net/vo/CRT.png" alt="" class="garland-right">
+</div>
 
 <div class="wrap">
 
@@ -681,18 +692,18 @@ body::before {
         <div class="field">
           <label>رقم الموبايل</label>
           <div class="input-wrap">
-            <i class="fas fa-mobile-screen-button"></i>
             <input type="tel" name="number" placeholder="01XXXXXXXXX"
                    inputmode="tel" autocomplete="tel" required
                    value="{{ prefill_number }}">
+            <span class="inp-icon"><i class="fas fa-mobile-screen-button"></i></span>
           </div>
         </div>
         <div class="field">
           <label>كلمة المرور</label>
           <div class="input-wrap">
-            <i class="fas fa-lock"></i>
-            <input type="password" name="password" placeholder="••••••••"
+            <input type="password" name="password" placeholder="كلمة المرور"
                    autocomplete="current-password" required>
+            <span class="inp-icon"><i class="fas fa-lock"></i></span>
           </div>
         </div>
         <button type="submit" class="submit-btn" id="LOGIN_BTN">
