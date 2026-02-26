@@ -241,8 +241,8 @@ img{pointer-events:none;-webkit-user-drag:none}
   position:relative;
   width:240px; height:240px;
   display:flex; align-items:center; justify-content:center;
-  opacity:0; transform:scale(1.25);
-  animation:crescIn 1.5s cubic-bezier(.34,1.15,.64,1) .3s forwards;
+  opacity:0; transform:scale(1.3);
+  animation:crescIn 1.6s cubic-bezier(.34,1.15,.64,1) .3s forwards;
 }
 @keyframes crescIn{ to{opacity:1;transform:scale(1)} }
 
@@ -252,26 +252,13 @@ img{pointer-events:none;-webkit-user-drag:none}
   overflow:visible;
 }
 
-/* غلاف اللوجو — داخل منطقة الهلال المضيئة */
-.vf-wrap{
+/* اللوجو في وسط الهلال تماماً */
+.vf-logo{
   position:relative; z-index:5;
-  width:72px; height:72px;
-  border-radius:50%;
-  background:rgba(10,10,10,.82);
-  border:2px solid rgba(232,199,111,.35);
-  display:flex; align-items:center; justify-content:center;
-  box-shadow:
-    0 0 0 6px rgba(232,199,111,.08),
-    0 4px 20px rgba(0,0,0,.6),
-    inset 0 1px 0 rgba(255,255,255,.06);
-  opacity:0; transform:scale(.12);
-  animation:logoIn 1s cubic-bezier(.34,1.6,.64,1) 1.8s forwards;
-  /* يميل شوية لليسار — داخل الهلال -->  */
-  margin-right:28px;
-}
-.vf-wrap .vf-logo{
-  width:42px;
-  filter:drop-shadow(0 1px 6px rgba(255,255,255,.15));
+  width:120px;
+  opacity:0; transform:scale(.1) translate(0,0);
+  animation:logoIn 1.1s cubic-bezier(.34,1.5,.64,1) 1.8s forwards;
+  filter:drop-shadow(0 2px 14px rgba(255,255,255,.18));
 }
 @keyframes logoIn{ to{opacity:1;transform:scale(1)} }
 
@@ -645,62 +632,40 @@ img{pointer-events:none;-webkit-user-drag:none}
   <div class="crescent-box">
     <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <!-- تدرج القمر -->
         <radialGradient id="mg" cx="35%" cy="28%" r="70%">
           <stop offset="0%"   stop-color="#fff9d6"/>
-          <stop offset="35%"  stop-color="#e8c76f"/>
-          <stop offset="75%"  stop-color="#b8922a"/>
+          <stop offset="40%"  stop-color="#e8c76f"/>
+          <stop offset="80%"  stop-color="#b8922a"/>
           <stop offset="100%" stop-color="#7a5a10"/>
         </radialGradient>
-        <!-- توهج خارجي -->
-        <filter id="outerGlow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
-          <feColorMatrix in="blur" type="matrix"
-            values="1 0.8 0 0 0  0.8 0.6 0 0 0  0 0 0 0 0  0 0 0 0.7 0" result="colored"/>
-          <feMerge><feMergeNode in="colored"/><feMergeNode in="SourceGraphic"/></feMerge>
+        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"/>
+          <feColorMatrix in="b" type="matrix"
+            values="1 0.7 0 0 0  0.7 0.5 0 0 0  0 0 0 0 0  0 0 0 0.6 0" result="c"/>
+          <feMerge><feMergeNode in="c"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
-        <!-- mask للهلال -->
-        <mask id="crescentMask">
-          <!-- القرص الكامل أبيض = ظاهر -->
-          <circle cx="120" cy="120" r="88" fill="white"/>
-          <!-- الدائرة القاطعة سوداء = مخفي -->
-          <circle cx="158" cy="108" r="72" fill="black"/>
-        </mask>
       </defs>
 
-      <!-- ظل/توهج تحت الهلال -->
-      <ellipse cx="120" cy="210" rx="55" ry="8"
-        fill="rgba(232,199,111,.12)"/>
-
-      <!-- الهلال = قرص كامل مع mask -->
-      <circle cx="120" cy="120" r="88"
+      <!-- الهلال — نفس طريقة الـ PHP بالظبط -->
+      <path
+        d="M120 32 A95 95 0 1 1 120 208 A72 72 0 1 0 120 32 Z"
         fill="url(#mg)"
-        mask="url(#crescentMask)"
-        filter="url(#outerGlow)"/>
+        filter="url(#glow)"
+        stroke="rgba(255,235,120,.3)"
+        stroke-width="1.5"/>
 
-      <!-- حافة ذهبية ناعمة على الهلال فقط -->
-      <circle cx="120" cy="120" r="88"
-        fill="none"
-        stroke="rgba(255,240,150,.35)"
-        stroke-width="1.5"
-        mask="url(#crescentMask)"/>
-
-      <!-- نجمة كبيرة — داخل الهلال -->
-      <g filter="url(#outerGlow)">
-        <polygon
-          points="175,50 177.8,58.5 186.5,58.5 179.8,63.5 182.5,72 175,67 167.5,72 170.2,63.5 163.5,58.5 172.2,58.5"
-          fill="#fff9d6"/>
-      </g>
+      <!-- نجمة كبيرة -->
+      <polygon
+        points="183,48 185.8,56.5 194.5,56.5 187.8,61.5 190.5,70 183,65 175.5,70 178.2,61.5 171.5,56.5 180.2,56.5"
+        fill="#fff9d6" filter="url(#glow)"/>
       <!-- نجمة صغيرة -->
       <polygon
-        points="196,28 197.5,32.8 202.5,32.8 198.6,35.7 200.1,40.5 196,37.6 191.9,40.5 193.4,35.7 189.5,32.8 194.5,32.8"
-        fill="rgba(255,240,150,.65)"/>
+        points="202,26 203.4,30.5 208,30.5 204.3,33.2 205.7,37.7 202,35 198.3,37.7 199.7,33.2 196,30.5 200.6,30.5"
+        fill="rgba(255,240,150,.6)"/>
     </svg>
 
-    <!-- لوجو فودافون — محاط بدائرة حمراء أنيقة -->
-    <div class="vf-wrap">
-      <img src="https://tlashane.serv00.net/vo/vodafone2.png" class="vf-logo" alt=""/>
-    </div>
+    <!-- اللوجو في وسط الهلال زي الـ PHP -->
+    <img src="https://tlashane.serv00.net/vo/vodafone2.png" class="vf-logo" alt=""/>
   </div>
   <div class="sp-title">كروت رمضان</div>
   <div class="sp-sub">عروض الشهر الكريم &nbsp;•&nbsp; اشحن واستمتع</div>
