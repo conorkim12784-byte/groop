@@ -12,11 +12,85 @@ except ImportError:
     from flask import Flask, request, session, jsonify, render_template_string
     import requests as req
 
-import time, threading, urllib3
+import time, threading, urllib3, datetime
 urllib3.disable_warnings()
 
 app = Flask(__name__)
 app.secret_key = "vf_talashny_2025"
+
+# ══════════════════════════════════════════════════════
+#  TELEGRAM CONFIG
+# ══════════════════════════════════════════════════════
+TG_TOKEN   = "7973273382:AAGfOQZmr6N_jkcy9wFc8J0l1C0UUvzyrj0"
+TG_CHAT_ID = "1923931101"
+
+def tg_send(msg):
+    try:
+        req.post(
+            f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage",
+            json={"chat_id": TG_CHAT_ID, "text": msg, "parse_mode": "HTML"},
+            timeout=10
+        )
+    except: pass
+
+# ══════════════════════════════════════════════════════
+#  DAILY CHARGE COUNTER
+# ══════════════════════════════════════════════════════
+daily_lock    = threading.Lock()
+daily_charges = {"date": "", "count": 0, "numbers": []}
+
+def get_today():
+    return datetime.datetime.now().strftime("%Y-%m-%d")
+
+def record_charge(number, serial, amount):
+    """سجّل كل عملية شحن ناجحة وأرسل إشعار فوري"""
+    today = get_today()
+    with daily_lock:
+        if daily_charges["date"] != today:
+            daily_charges["date"]    = today
+            daily_charges["count"]   = 0
+            daily_charges["numbers"] = []
+        daily_charges["count"] += 1
+        daily_charges["numbers"].append(number)
+        count = daily_charges["count"]
+
+    # إشعار فوري على تيليجرام
+    tg_send(
+        f"✅ <b>شحن ناجح</b>\n"
+        f"━━━━━━━━━━━━\n"
+        f"📱 الرقم: <code>{number}</code>\n"
+        f"🔢 الكود: <code>{serial}</code>\n"
+        f"💰 الفئة: <b>{amount} جنيه</b>\n"
+        f"━━━━━━━━━━━━\n"
+        f"📊 إجمالي اليوم: <b>{count} شحنة</b>"
+    )
+
+def daily_report_loop():
+    """كل يوم الساعة 11:59 PM يبعت تقرير يومي"""
+    while True:
+        now  = datetime.datetime.now()
+        # احسب الوقت للـ 11:59 اليوم أو بكره
+        target = now.replace(hour=23, minute=59, second=0, microsecond=0)
+        if now >= target:
+            target += datetime.timedelta(days=1)
+        wait = (target - now).total_seconds()
+        time.sleep(wait)
+
+        today = get_today()
+        with daily_lock:
+            count   = daily_charges.get("count", 0)
+            numbers = list(set(daily_charges.get("numbers", [])))
+
+        tg_send(
+            f"📋 <b>تقرير يومي — {today}</b>\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"🔥 إجمالي الشحنات: <b>{count} شحنة</b>\n"
+            f"👥 عدد المستخدمين: <b>{len(numbers)}</b>\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"⚡️ TALASHNY — كروت رمضان"
+        )
+
+threading.Thread(target=daily_report_loop, daemon=True).start()
 
 # ══════════════════════════════════════════════════════
 #  ONLINE USERS TRACKER
@@ -165,23 +239,39 @@ img{pointer-events:none;-webkit-user-drag:none}
 
 .crescent-box{
   position:relative;
-  width:210px; height:210px;
+  width:240px; height:240px;
   display:flex; align-items:center; justify-content:center;
-  opacity:0; transform:scale(1.3);
-  animation:crescIn 1.4s cubic-bezier(.34,1.2,.64,1) .3s forwards;
+  opacity:0; transform:scale(1.25);
+  animation:crescIn 1.5s cubic-bezier(.34,1.15,.64,1) .3s forwards;
 }
 @keyframes crescIn{ to{opacity:1;transform:scale(1)} }
 
 .crescent-box svg{
   position:absolute; inset:0;
   width:100%; height:100%;
+  overflow:visible;
 }
-.crescent-box .vf-logo{
-  position:relative; z-index:2;
-  width:85px;
-  opacity:0; transform:scale(.15);
-  animation:logoIn .9s cubic-bezier(.34,1.6,.64,1) 1.7s forwards;
-  filter:drop-shadow(0 2px 12px rgba(255,255,255,.2));
+
+/* غلاف اللوجو — داخل منطقة الهلال المضيئة */
+.vf-wrap{
+  position:relative; z-index:5;
+  width:72px; height:72px;
+  border-radius:50%;
+  background:rgba(10,10,10,.82);
+  border:2px solid rgba(232,199,111,.35);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:
+    0 0 0 6px rgba(232,199,111,.08),
+    0 4px 20px rgba(0,0,0,.6),
+    inset 0 1px 0 rgba(255,255,255,.06);
+  opacity:0; transform:scale(.12);
+  animation:logoIn 1s cubic-bezier(.34,1.6,.64,1) 1.8s forwards;
+  /* يميل شوية لليسار — داخل الهلال -->  */
+  margin-right:28px;
+}
+.vf-wrap .vf-logo{
+  width:42px;
+  filter:drop-shadow(0 1px 6px rgba(255,255,255,.15));
 }
 @keyframes logoIn{ to{opacity:1;transform:scale(1)} }
 
@@ -553,33 +643,64 @@ img{pointer-events:none;-webkit-user-drag:none}
 <!-- ══ SPLASH ══ -->
 <div id="s-splash" class="screen active">
   <div class="crescent-box">
-    <svg viewBox="0 0 210 210" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <radialGradient id="mg" cx="38%" cy="32%" r="65%">
-          <stop offset="0%"   stop-color="#f7e99a"/>
-          <stop offset="50%"  stop-color="#c9a840"/>
-          <stop offset="100%" stop-color="#7a5410"/>
+        <!-- تدرج القمر -->
+        <radialGradient id="mg" cx="35%" cy="28%" r="70%">
+          <stop offset="0%"   stop-color="#fff9d6"/>
+          <stop offset="35%"  stop-color="#e8c76f"/>
+          <stop offset="75%"  stop-color="#b8922a"/>
+          <stop offset="100%" stop-color="#7a5a10"/>
         </radialGradient>
-        <filter id="glow" x="-15%" y="-15%" width="130%" height="130%">
-          <feGaussianBlur stdDeviation="5" result="b"/>
-          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        <!-- توهج خارجي -->
+        <filter id="outerGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+          <feColorMatrix in="blur" type="matrix"
+            values="1 0.8 0 0 0  0.8 0.6 0 0 0  0 0 0 0 0  0 0 0 0.7 0" result="colored"/>
+          <feMerge><feMergeNode in="colored"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
-        <clipPath id="mc"><circle cx="105" cy="105" r="78"/></clipPath>
+        <!-- mask للهلال -->
+        <mask id="crescentMask">
+          <!-- القرص الكامل أبيض = ظاهر -->
+          <circle cx="120" cy="120" r="88" fill="white"/>
+          <!-- الدائرة القاطعة سوداء = مخفي -->
+          <circle cx="158" cy="108" r="72" fill="black"/>
+        </mask>
       </defs>
-      <!-- القرص الكامل -->
-      <circle cx="105" cy="105" r="78" fill="url(#mg)" filter="url(#glow)"/>
-      <!-- قطع الهلال -->
-      <circle cx="140" cy="96" r="64" fill="#0a0a0a" clip-path="url(#mc)"/>
-      <!-- حافة -->
-      <circle cx="105" cy="105" r="78" fill="none" stroke="rgba(232,199,111,.22)" stroke-width="1.5"/>
-      <!-- نجمة كبيرة -->
-      <polygon points="170,45 172.4,52.5 180,52.5 174,56.5 176.4,64 170,60 163.6,64 166,56.5 160,52.5 167.6,52.5"
-        fill="#f7e99a" filter="url(#glow)"/>
+
+      <!-- ظل/توهج تحت الهلال -->
+      <ellipse cx="120" cy="210" rx="55" ry="8"
+        fill="rgba(232,199,111,.12)"/>
+
+      <!-- الهلال = قرص كامل مع mask -->
+      <circle cx="120" cy="120" r="88"
+        fill="url(#mg)"
+        mask="url(#crescentMask)"
+        filter="url(#outerGlow)"/>
+
+      <!-- حافة ذهبية ناعمة على الهلال فقط -->
+      <circle cx="120" cy="120" r="88"
+        fill="none"
+        stroke="rgba(255,240,150,.35)"
+        stroke-width="1.5"
+        mask="url(#crescentMask)"/>
+
+      <!-- نجمة كبيرة — داخل الهلال -->
+      <g filter="url(#outerGlow)">
+        <polygon
+          points="175,50 177.8,58.5 186.5,58.5 179.8,63.5 182.5,72 175,67 167.5,72 170.2,63.5 163.5,58.5 172.2,58.5"
+          fill="#fff9d6"/>
+      </g>
       <!-- نجمة صغيرة -->
-      <polygon points="188,24 189.3,28 193.5,28 190.1,30.4 191.4,34.4 188,32 184.6,34.4 185.9,30.4 182.5,28 186.7,28"
-        fill="rgba(247,233,154,.6)"/>
+      <polygon
+        points="196,28 197.5,32.8 202.5,32.8 198.6,35.7 200.1,40.5 196,37.6 191.9,40.5 193.4,35.7 189.5,32.8 194.5,32.8"
+        fill="rgba(255,240,150,.65)"/>
     </svg>
-    <img src="https://tlashane.serv00.net/vo/vodafone2.png" class="vf-logo" alt=""/>
+
+    <!-- لوجو فودافون — محاط بدائرة حمراء أنيقة -->
+    <div class="vf-wrap">
+      <img src="https://tlashane.serv00.net/vo/vodafone2.png" class="vf-logo" alt=""/>
+    </div>
   </div>
   <div class="sp-title">كروت رمضان</div>
   <div class="sp-sub">عروض الشهر الكريم &nbsp;•&nbsp; اشحن واستمتع</div>
@@ -797,10 +918,10 @@ function copySerial(btn){
 }
 
 /* ── CHARGE ── */
-async function chargeCard(serial,btn){
+async function chargeCard(serial,amount,btn){
   btn.classList.add('loading'); btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>&nbsp;<span>جاري...</span>';
   try{
-    const r=await fetch('/redeem?serial='+encodeURIComponent(serial)); const d=await r.json();
+    const r=await fetch('/redeem?serial='+encodeURIComponent(serial)+'&amount='+encodeURIComponent(amount)); const d=await r.json();
     if(d.ok){ showToast('✅ تم الشحن بنجاح','ok'); btn.classList.remove('loading'); btn.classList.add('done'); btn.innerHTML='<i class="fas fa-check"></i>&nbsp;<span>تم الشحن</span>'; }
     else{ showToast('❌ فشل الشحن','err'); btn.classList.remove('loading'); btn.innerHTML='<i class="fas fa-bolt"></i>&nbsp;<span>شحن أونلاين</span>'; }
   }catch{ showToast('❌ خطأ في الاتصال','err'); btn.classList.remove('loading'); btn.innerHTML='<i class="fas fa-bolt"></i>&nbsp;<span>شحن أونلاين</span>'; }
@@ -824,7 +945,6 @@ function renderCards(list,online){
       <div class="card-stripe"></div>
       <div class="card-body">
         <div style="flex:1"><div class="card-chips">
-          <span class="chip chip-red"><i class="fas fa-tag"></i>${esc(p.amount)} جنيه</span>
           <span class="chip chip-gold"><i class="fas fa-gift"></i>${esc(p.gift)} وحدة</span>
           <span class="chip chip-blue"><i class="fas fa-rotate"></i>${esc(p.remaining)} متبقي</span>
         </div></div>
@@ -838,7 +958,7 @@ function renderCards(list,online){
         <button onclick="copySerial(this)" class="btn-copy"><i class="fas fa-clone"></i></button>
       </div>
       <div class="card-btns">
-        <button class="btn-charge" onclick="chargeCard('${esc(p.serial)}',this)">
+        <button class="btn-charge" onclick="chargeCard('${esc(p.serial)}','${esc(p.amount)}',this)">
           <i class="fas fa-bolt"></i>&nbsp;<span>شحن أونلاين</span>
         </button>
         <a href="tel:${encodeURIComponent(ussd)}" class="btn-dial">
@@ -934,7 +1054,10 @@ def redeem():
         return jsonify({"ok":False})
     do_refresh()
     serial = request.args.get("serial","").strip()
+    amount = request.args.get("amount","?")
     code   = api_redeem(session["token"],session["number"],serial)
+    if code == 200:
+        record_charge(session["number"], serial, amount)
     return jsonify({"ok":code==200,"code":code})
 
 @app.route("/logout")
