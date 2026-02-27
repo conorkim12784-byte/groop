@@ -1222,4 +1222,1018 @@ input[type="datetime-local"]{
       </div>
       <button class="btn-auth" onclick="checkAdminPw()">
         <i class="fas fa-unlock-keyhole"></i>&nbsp; دخول
-      </button
+      </button>
+    </div>
+
+    <!-- Content -->
+    <div class="admin-content" id="adminContent">
+
+      <!-- Tabs -->
+      <div class="admin-tabs">
+        <div class="admin-tab active" id="tab-send" onclick="switchTab('send')">
+          <i class="fas fa-paper-plane"></i>&nbsp; إرسال
+        </div>
+        <div class="admin-tab" id="tab-schedule" onclick="switchTab('schedule')">
+          <i class="fas fa-calendar-clock"></i>&nbsp; جدولة
+        </div>
+        <div class="admin-tab" id="tab-history" onclick="switchTab('history')">
+          <i class="fas fa-clock-rotate-left"></i>&nbsp; السجل
+        </div>
+      </div>
+
+      <!-- ══ TAB: SEND ══ -->
+      <div id="tabSend" style="padding-top:14px">
+
+      <!-- Stats — 3 boxes now -->
+      <div class="admin-stats" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="adm-stat">
+          <div class="adm-stat-val" id="adm-online">—</div>
+          <div class="adm-stat-lbl">متصل الآن</div>
+        </div>
+        <div class="adm-stat">
+          <div class="adm-stat-val" id="adm-today">—</div>
+          <div class="adm-stat-lbl">شحنات اليوم</div>
+        </div>
+        <div class="adm-stat" style="border-top-color:var(--gold)" >
+          <div class="adm-stat-val" id="adm-views" style="color:var(--gold)">—</div>
+          <div class="adm-stat-lbl">شافوا الإشعار</div>
+        </div>
+      </div>
+
+      <div class="admin-sep">إرسال إشعار</div>
+
+      <!-- Type selector -->
+      <div class="admin-type-grid">
+        <div class="type-btn active-info" id="type-info" onclick="setType('info')">
+          <i class="fas fa-circle-info" style="color:#80ccee"></i>معلومة
+        </div>
+        <div class="type-btn" id="type-ok" onclick="setType('ok')">
+          <i class="fas fa-circle-check" style="color:var(--green)"></i>نجاح
+        </div>
+        <div class="type-btn" id="type-err" onclick="setType('err')">
+          <i class="fas fa-circle-exclamation" style="color:#ff8888"></i>تحذير
+        </div>
+      </div>
+
+      <!-- Title -->
+      <div class="admin-field">
+        <label class="admin-label">عنوان الإشعار</label>
+        <input type="text" class="admin-title-field" id="notifTitleInput"
+          placeholder="مثال: تنبيه مهم..." value="TALASHNY" oninput="updatePreview()"/>
+      </div>
+
+      <!-- Message -->
+      <div class="admin-field">
+        <label class="admin-label">نص الرسالة</label>
+        <textarea class="admin-textarea" id="notifMsgInput" rows="3"
+          placeholder="اكتب رسالتك هنا..." oninput="updatePreview()"></textarea>
+      </div>
+
+      <!-- Icon URL -->
+      <div class="admin-field">
+        <label class="admin-label"><i class="fas fa-image" style="margin-left:4px"></i>رابط الأيقونة (اختياري)</label>
+        <div class="input-box" style="background:var(--dark3)">
+          <input type="url" id="notifIconInput" placeholder="https://..." style="font-size:.72rem;direction:ltr" oninput="updatePreview()"/>
+          <span class="ico"><i class="fas fa-link"></i></span>
+        </div>
+      </div>
+
+      <!-- Link URL + button label -->
+      <div class="admin-field">
+        <label class="admin-label"><i class="fas fa-arrow-up-right-from-square" style="margin-left:4px"></i>رابط الزرار (اختياري)</label>
+        <div class="input-box" style="background:var(--dark3);margin-bottom:7px">
+          <input type="url" id="notifLinkInput" placeholder="https://..." style="font-size:.72rem;direction:ltr" oninput="updatePreview()"/>
+          <span class="ico"><i class="fas fa-link"></i></span>
+        </div>
+        <div class="input-box" style="background:var(--dark3)">
+          <input type="text" id="notifBtnInput" placeholder="نص الزرار... مثلاً: افتح العرض" style="font-size:.72rem" oninput="updatePreview()"/>
+          <span class="ico"><i class="fas fa-i-cursor"></i></span>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="admin-sep">معاينة</div>
+      <div class="notif-preview" id="notifPreview">
+        <div class="prev-icon" id="prevIconWrap"><i class="fas fa-bell"></i></div>
+        <div class="prev-body" style="flex:1">
+          <div class="prev-app">TALASHNY • الآن</div>
+          <div class="prev-title" id="prevTitle">TALASHNY</div>
+          <div class="prev-text" id="prevText">نص الرسالة هيظهر هنا...</div>
+          <div id="prevBtn" style="display:none;margin-top:7px">
+            <span style="display:inline-flex;align-items:center;gap:4px;font-size:.55rem;font-weight:800;color:var(--red);background:rgba(230,0,0,.08);border:1px solid rgba(230,0,0,.2);padding:4px 10px;border-radius:6px">
+              <i class="fas fa-arrow-up-right-from-square"></i>
+              <span id="prevBtnLabel">افتح الرابط</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Duration -->
+      <div class="admin-field" style="margin-top:14px">
+        <label class="admin-label">مدة ظهور الإشعار</label>
+        <div class="admin-dur-grid" id="durGrid">
+          <div class="dur-btn active" onclick="setDur(this,60)">1 د</div>
+          <div class="dur-btn" onclick="setDur(this,300)">5 د</div>
+          <div class="dur-btn" onclick="setDur(this,600)">10 د</div>
+          <div class="dur-btn" onclick="setDur(this,1800)">30 د</div>
+          <div class="dur-btn" onclick="setDur(this,3600)">ساعة</div>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="admin-btns" style="margin-top:10px">
+        <button class="btn-send-notif" onclick="sendNotif()">
+          <i class="fas fa-paper-plane"></i>&nbsp;إرسال للكل
+        </button>
+        <button class="btn-clear-notif" onclick="clearNotif()">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+
+      </div><!-- /tabSend -->
+
+      <!-- ══ TAB: HISTORY ══ -->
+      <div id="tabHistory" style="display:none;padding-top:14px">
+        <div class="hist-list" id="histList">
+          <div class="hist-empty"><i class="fas fa-inbox" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.3"></i>لا يوجد سجل بعد</div>
+        </div>
+      </div>
+
+      <!-- ══ TAB: SCHEDULE ══ -->
+      <div id="tabSchedule" style="display:none;padding-top:14px">
+
+        <!-- فورم جديد -->
+        <div class="sched-form">
+          <div class="admin-sep" style="margin-top:0">إشعار جديد مجدول</div>
+
+          <div class="admin-type-grid" style="margin-bottom:10px">
+            <div class="type-btn active-info" id="stype-info" onclick="setSchedType('info')">
+              <i class="fas fa-circle-info" style="color:#80ccee"></i>معلومة
+            </div>
+            <div class="type-btn" id="stype-ok" onclick="setSchedType('ok')">
+              <i class="fas fa-circle-check" style="color:var(--green)"></i>نجاح
+            </div>
+            <div class="type-btn" id="stype-err" onclick="setSchedType('err')">
+              <i class="fas fa-circle-exclamation" style="color:#ff8888"></i>تحذير
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <label class="admin-label">عنوان الإشعار</label>
+            <input type="text" class="admin-title-field" id="schedTitleInput" placeholder="TALASHNY" value="TALASHNY"/>
+          </div>
+
+          <div class="admin-field">
+            <label class="admin-label">نص الرسالة</label>
+            <textarea class="admin-textarea" id="schedMsgInput" rows="2" placeholder="اكتب الرسالة..."></textarea>
+          </div>
+
+          <div class="admin-field">
+            <label class="admin-label"><i class="fas fa-calendar-clock" style="margin-left:4px"></i>وقت الإرسال</label>
+            <input type="datetime-local" id="schedTimeInput" class="admin-title-field" style="direction:ltr"/>
+          </div>
+
+          <div class="admin-field">
+            <label class="admin-label">رابط الزرار (اختياري)</label>
+            <div class="input-box" style="background:var(--dark3)">
+              <input type="url" id="schedLinkInput" placeholder="https://..." style="font-size:.72rem;direction:ltr"/>
+              <span class="ico"><i class="fas fa-link"></i></span>
+            </div>
+          </div>
+
+          <button class="btn-send-notif" style="width:100%;margin-top:4px" onclick="addSchedule()">
+            <i class="fas fa-calendar-plus"></i>&nbsp;جدولة الإشعار
+          </button>
+        </div>
+
+        <!-- قائمة المجدولة -->
+        <div class="admin-sep">المجدولة</div>
+        <div class="sched-list" id="schedList">
+          <div class="hist-empty"><i class="fas fa-calendar-xmark" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.3"></i>لا توجد إشعارات مجدولة</div>
+        </div>
+
+      </div><!-- /tabSchedule -->
+
+    </div><!-- /admin-content -->
+  </div>
+</div>
+
+<!-- toast -->
+<div class="toast" id="toastEl"></div>
+
+<script>
+const _=id=>document.getElementById(id);
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showToast(msg,t=''){
+  const el=_('toastEl');
+  el.textContent=msg; el.className='toast show'+(t?' '+t:'');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2800);
+}
+
+/* ── SWITCH ── */
+function goTo(newId){
+  const screens = document.querySelectorAll('.screen');
+  screens.forEach(s=>{
+    if(s.id===newId){
+      s.classList.add('active');
+    } else {
+      s.classList.remove('active');
+    }
+  });
+  if(newId==='s-app') _(newId).scrollTop=0;
+}
+
+/* ── حماية النسخ والسياق ── */
+document.addEventListener('contextmenu', e=>e.preventDefault());
+document.addEventListener('copy',   e=>e.preventDefault());
+document.addEventListener('cut',    e=>e.preventDefault());
+document.addEventListener('dragstart', e=>e.preventDefault());
+// حماية long-press على موبايل
+document.addEventListener('touchstart', e=>{
+  if(e.target.tagName!=='INPUT' && e.target.tagName!=='TEXTAREA' && e.target.tagName!=='A'){
+    e.target._lpTimer = setTimeout(()=>e.preventDefault(), 500);
+  }
+},{passive:true});
+document.addEventListener('touchend', e=>{
+  clearTimeout(e.target._lpTimer);
+},{passive:true});
+
+let timerInt=null, pingInt=null;
+function startPing(){ fetch('/ping'); clearInterval(pingInt); pingInt=setInterval(()=>fetch('/ping'),15000); }
+function stopPing(){ clearInterval(pingInt); }
+
+/* ── BOOT ── */
+(async()=>{
+  try{
+    const r=await fetch('/check'); const d=await r.json();
+    if(d.logged){
+      _('s-splash').classList.remove('active');
+      _('topNum').textContent=d.number;
+      goTo('s-app'); startPing(); startCycle(); return;
+    }
+  }catch{}
+  setTimeout(()=>{
+    const sp=_('s-splash');
+    sp.style.transition='opacity .8s ease'; sp.style.opacity='0';
+    setTimeout(()=>{ sp.classList.remove('active'); goTo('s-login'); }, 800);
+  }, 5400);
+})();
+
+/* ── LOGIN ── */
+async function doLogin(){
+  const num=_('inpNum').value.trim(), pw=_('inpPw').value.trim();
+  if(!num||!pw) return;
+  const btn=_('loginBtn');
+  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>&nbsp; جاري التحقق...';
+  _('errBox').style.display='none';
+  try{
+    const fd=new FormData(); fd.append('number',num); fd.append('password',pw);
+    const r=await fetch('/login',{method:'POST',body:fd}); const d=await r.json();
+    if(d.ok){
+      _('topNum').textContent=d.number;
+      // vibrate خفيف لو متاح
+      navigator.vibrate && navigator.vibrate(30);
+      goTo('s-app'); startPing(); startCycle();
+    }
+    else{ _('errMsg').textContent=d.error||'الرقم أو الباسورد غلط'; _('errBox').style.display='flex'; }
+  }catch{ _('errMsg').textContent='خطأ في الاتصال — تحقق من النت'; _('errBox').style.display='flex'; }
+  btn.disabled=false; btn.innerHTML='<i class="fas fa-right-to-bracket"></i>&nbsp; دخول';
+}
+_('inpPw')?.addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+_('inpNum')?.addEventListener('keydown',e=>{ if(e.key==='Enter') _('inpPw').focus(); });
+
+/* ── LOGOUT ── */
+_('logoutBtn').onclick=async()=>{
+  await fetch('/logout'); clearInterval(timerInt); stopPing(); goTo('s-login');
+};
+
+/* ── COPY ── */
+function copySerial(btn){
+  const s=btn.closest('.card-serial').querySelector('.serial-val').textContent.trim();
+  const ok=()=>{
+    const o=btn.innerHTML;
+    btn.innerHTML='<i class="fas fa-check" style="color:var(--green)"></i>';
+    setTimeout(()=>btn.innerHTML=o,1500); showToast('✅ تم نسخ الكود','ok');
+  };
+  if(navigator.clipboard) navigator.clipboard.writeText(s).then(ok).catch(fb); else fb();
+  function fb(){
+    const t=document.createElement('textarea'); t.value=s;
+    t.style.cssText='position:fixed;opacity:0'; document.body.appendChild(t);
+    t.select(); try{document.execCommand('copy')}catch{} document.body.removeChild(t); ok();
+  }
+}
+
+/* ── CHARGE ── */
+async function chargeCard(serial,amount,btn){
+  btn.classList.add('loading'); btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>&nbsp;<span>جاري...</span>';
+  try{
+    const r=await fetch('/redeem?serial='+encodeURIComponent(serial)+'&amount='+encodeURIComponent(amount));
+    const d=await r.json();
+    if(d.ok){ showToast('✅ تم الشحن بنجاح','ok'); btn.classList.remove('loading'); btn.classList.add('done'); btn.innerHTML='<i class="fas fa-check"></i>&nbsp;<span>تم الشحن</span>'; }
+    else{ showToast('❌ فشل الشحن','err'); btn.classList.remove('loading'); btn.innerHTML='<i class="fas fa-bolt"></i>&nbsp;<span>شحن أونلاين</span>'; }
+  }catch{ showToast('❌ خطأ في الاتصال','err'); btn.classList.remove('loading'); btn.innerHTML='<i class="fas fa-bolt"></i>&nbsp;<span>شحن أونلاين</span>'; }
+}
+
+/* ══════════════════════════════════════════════
+   SLIDE NOTIFICATION
+══════════════════════════════════════════════ */
+let notifTimer=null, currentNotifLink='';
+
+function notifClick(){
+  if(currentNotifLink){
+    window.open(currentNotifLink,'_blank');
+  }
+}
+
+function showNotif(title, text, type='info', duration=5000, iconUrl='', linkUrl='', btnLabel=''){
+  const el    = _('notifSlide');
+  const icon  = _('notifIcon');
+  const fill  = _('notifBarFill');
+  const icons = { info:'fa-bell', ok:'fa-circle-check', err:'fa-circle-exclamation' };
+  const colors= { info:'var(--red)', ok:'var(--green)', err:'#ff5555' };
+  const color = colors[type]||'var(--red)';
+
+  _('notifTitle').textContent = title;
+  _('notifText').textContent  = text;
+
+  // أيقونة — صورة أو أيقونة افتراضية
+  if(iconUrl){
+    icon.innerHTML = `<img src="${iconUrl}" onerror="this.parentElement.innerHTML='<i class=\\'fas fa-bell\\'></i>'"/>`;
+  } else {
+    icon.innerHTML = `<i class="fas ${icons[type]||'fa-bell'}"></i>`;
+    icon.style.color = color;
+  }
+  el.style.borderRightColor = color;
+  fill.style.background = color;
+
+  // زرار الرابط
+  currentNotifLink = linkUrl;
+  const actionBtn = _('notifActionBtn');
+  if(linkUrl){
+    actionBtn.href = linkUrl;
+    _('notifBtnLabel').textContent = btnLabel || 'افتح الرابط';
+    actionBtn.style.display = 'flex';
+    actionBtn.style.borderColor = color;
+    actionBtn.style.color = color;
+    actionBtn.style.background = color.replace('var(--red)','rgba(230,0,0,.09)')
+                                       .replace('var(--green)','rgba(0,200,90,.09)')
+                                       .replace('#ff5555','rgba(255,85,85,.09)');
+    el.classList.add('has-link');
+  } else {
+    actionBtn.style.display = 'none';
+    el.classList.remove('has-link');
+  }
+
+  // شريط التقدم
+  fill.style.transition='none';
+  fill.style.transform='scaleX(1)';
+  fill.style.transformOrigin='right';
+
+  el.classList.add('show');
+  clearTimeout(notifTimer);
+
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      fill.style.transition=`transform ${duration}ms linear`;
+      fill.style.transform='scaleX(0)';
+    });
+  });
+
+  notifTimer = setTimeout(()=>el.classList.remove('show'), duration);
+}
+
+/* ══════════════════════════════════════════════
+   LIVE DOT — 5 TAPS → ADMIN
+══════════════════════════════════════════════ */
+let tapCount=0, tapTimer=null;
+function handleLiveTap(){
+  tapCount++;
+  // فلاشة بصرية على كل ضغطة
+  const dot = _('liveDotBtn');
+  dot.style.transform='scale(1.8)';
+  dot.style.boxShadow='0 0 0 6px rgba(0,200,90,.4)';
+  setTimeout(()=>{ dot.style.transform=''; dot.style.boxShadow=''; }, 200);
+
+  clearTimeout(tapTimer);
+  if(tapCount >= 5){
+    tapCount=0;
+    openAdmin();
+  } else {
+    tapTimer = setTimeout(()=>tapCount=0, 2500);
+  }
+}
+
+/* ══════════════════════════════════════════════
+   ADMIN PANEL
+══════════════════════════════════════════════ */
+const ADMIN_PW = '1052003Mm$#@';
+let adminAuthed = false;
+let selectedType = 'info';
+
+function openAdmin(){
+  _('adminOverlay').classList.add('open');
+  // reset auth لو مش authed
+  if(!adminAuthed){
+    _('adminAuth').style.display='';
+    _('adminContent').classList.remove('visible');
+    _('adminPwInput').value='';
+    _('authErr').classList.remove('show');
+    updatePinDots(0,'');
+    setTimeout(()=>_('adminPwInput').focus(), 350);
+  } else {
+    loadAdminStats();
+  }
+}
+function closeAdmin(){
+  _('adminOverlay').classList.remove('open');
+}
+// إغلاق بالضغط على الخلفية
+_('adminOverlay').addEventListener('click',function(e){
+  if(e.target===this) closeAdmin();
+});
+
+function updatePinDots(len, state){
+  const dots = _('pinDots').querySelectorAll('.pin-dot');
+  dots.forEach((d,i)=>{
+    d.classList.remove('filled','err');
+    if(i < len) d.classList.add(state||'filled');
+  });
+}
+
+function checkAdminPw(){
+  const val = _('adminPwInput').value;
+  updatePinDots(Math.min(val.length,6),'filled');
+  if(val === ADMIN_PW){
+    adminAuthed=true;
+    _('adminAuth').style.display='none';
+    _('adminContent').classList.add('visible');
+    loadAdminStats();
+  } else {
+    updatePinDots(6,'err');
+    _('authErr').classList.add('show');
+    setTimeout(()=>{
+      updatePinDots(0,'');
+      _('authErr').classList.remove('show');
+      _('adminPwInput').value='';
+    }, 1200);
+  }
+}
+
+async function loadAdminStats(){
+  try{
+    const r=await fetch('/admin-stats'); const d=await r.json();
+    if(d.ok){
+      _('adm-online').textContent = d.online;
+      _('adm-today').textContent  = d.today;
+      _('adm-views').textContent  = d.views ?? '—';
+    }
+  }catch{}
+}
+
+function setType(t){
+  selectedType=t;
+  ['info','ok','err'].forEach(x=>{
+    const b=_('type-'+x);
+    b.className='type-btn';
+    if(x===t) b.classList.add('active-'+x);
+  });
+  updatePreview();
+}
+
+function updatePreview(){
+  const title   = _('notifTitleInput').value || 'TALASHNY';
+  const text    = _('notifMsgInput').value   || 'نص الرسالة هيظهر هنا...';
+  const iconUrl = _('notifIconInput').value.trim();
+  const linkUrl = _('notifLinkInput').value.trim();
+  const btnLbl  = _('notifBtnInput').value.trim() || 'افتح الرابط';
+  const icons   = { info:'fa-bell', ok:'fa-circle-check', err:'fa-circle-exclamation' };
+
+  _('prevTitle').textContent = title;
+  _('prevText').textContent  = text;
+
+  // أيقونة preview
+  const pw = _('prevIconWrap');
+  if(iconUrl){
+    pw.innerHTML=`<img src="${iconUrl}" style="width:28px;height:28px;border-radius:7px;object-fit:cover" onerror="this.outerHTML='<i class=\\'fas fa-bell\\'></i>'"/>`;
+  } else {
+    pw.innerHTML=`<i class="fas ${icons[selectedType]||'fa-bell'}"></i>`;
+  }
+
+  // زرار preview
+  const pb = _('prevBtn');
+  if(linkUrl){ pb.style.display='block'; _('prevBtnLabel').textContent=btnLbl; }
+  else { pb.style.display='none'; }
+
+  const prev = _('notifPreview');
+  prev.className='notif-preview';
+  if(selectedType==='ok')  prev.classList.add('type-ok');
+  if(selectedType==='err') prev.classList.add('type-err');
+}
+
+/* ══ صوت الإشعار ══ */
+function playNotifSound(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain= ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type='sine'; osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime+0.15);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.3);
+    osc.start(); osc.stop(ctx.currentTime+0.3);
+  }catch{}
+}
+
+/* ══ Admin Tabs ══ */
+function switchTab(tab){
+  ['send','schedule','history'].forEach(t=>{
+    _('tab-'+t)?.classList.toggle('active', t===tab);
+  });
+  _('tabSend').style.display     = tab==='send'     ? '' : 'none';
+  _('tabSchedule').style.display = tab==='schedule' ? '' : 'none';
+  _('tabHistory').style.display  = tab==='history'  ? '' : 'none';
+  if(tab==='history')  loadHistory();
+  if(tab==='schedule') loadSchedule();
+}
+
+/* ══ Schedule JS ══ */
+let selectedSchedType = 'info';
+
+function setSchedType(t){
+  selectedSchedType = t;
+  ['info','ok','err'].forEach(x=>{
+    const b=_('stype-'+x);
+    if(!b) return;
+    b.className='type-btn';
+    if(x===t) b.classList.add('active-'+x);
+  });
+}
+
+// اضبط أقل قيمة للوقت = الآن
+function initSchedTime(){
+  const inp = _('schedTimeInput');
+  if(!inp) return;
+  const now = new Date();
+  now.setMinutes(now.getMinutes()+5);
+  const iso = now.toISOString().slice(0,16);
+  inp.min   = iso;
+  inp.value = iso;
+}
+
+async function addSchedule(){
+  const title   = _('schedTitleInput').value.trim() || 'TALASHNY';
+  const text    = _('schedMsgInput').value.trim();
+  const fireVal = _('schedTimeInput').value;
+  const link    = _('schedLinkInput').value.trim();
+  if(!text)   { showToast('اكتب نص الإشعار','err'); return; }
+  if(!fireVal){ showToast('اختار وقت الإرسال','err'); return; }
+
+  const fireDate  = new Date(fireVal);
+  const fireTs    = Math.floor(fireDate.getTime() / 1000);
+  const nowTs     = Math.floor(Date.now() / 1000);
+  if(fireTs <= nowTs){ showToast('الوقت لازم يكون في المستقبل','err'); return; }
+
+  const fireDisplay = fireDate.toLocaleDateString('ar-EG',{month:'short',day:'numeric'})
+                    + ' ' + fireDate.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+
+  const btn = document.querySelector('#tabSchedule .btn-send-notif');
+  if(btn){ btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>&nbsp;جاري الحفظ...'; }
+  try{
+    const fd = new FormData();
+    fd.append('text',      text);
+    fd.append('type',      selectedSchedType);
+    fd.append('title',     title);
+    fd.append('fire_at',   fireDisplay);
+    fd.append('fire_at_ts', String(fireTs));
+    fd.append('link',      link);
+    fd.append('duration',  '300');
+    const r = await fetch('/schedule-add',{method:'POST',body:fd});
+    const d = await r.json();
+    if(d.ok){
+      showToast('✅ تم الجدولة — '+fireDisplay,'ok');
+      _('schedMsgInput').value=''; _('schedLinkInput').value='';
+      loadSchedule();
+    } else {
+      showToast('❌ '+(d.error||'خطأ'),'err');
+    }
+  } catch(e){ showToast('❌ خطأ في الاتصال','err'); }
+  if(btn){ btn.disabled=false; btn.innerHTML='<i class="fas fa-calendar-plus"></i>&nbsp;جدولة الإشعار'; }
+}
+
+function fmtFireAt(ts){
+  try{
+    const d = new Date(parseFloat(ts)*1000);
+    return d.toLocaleDateString('ar-EG',{month:'short',day:'numeric'})
+         + ' — ' + d.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+  }catch{ return '—'; }
+}
+
+async function loadSchedule(){
+  initSchedTime();
+  try{
+    const r=await fetch('/schedule-list'); const d=await r.json();
+    const wrap=_('schedList');
+    // فرق التوقيت بين السيرفر والمتصفح
+    const serverTs   = d.server_time || 0;
+    const clientTs   = Date.now()/1000;
+    const diffMin    = Math.round((clientTs - serverTs)/60);
+    const diffWarn   = Math.abs(diffMin) > 5
+      ? `<div style="font-size:.52rem;color:var(--gold);background:rgba(232,199,111,.08);border:1px solid rgba(232,199,111,.2);border-radius:8px;padding:6px 10px;margin-bottom:10px">
+           <i class="fas fa-triangle-exclamation"></i>&nbsp;فرق التوقيت: ${diffMin > 0 ? '+' : ''}${diffMin} دقيقة — السيرفر قد يكون UTC
+         </div>` : '';
+    const items=d.items||[];
+    if(!items.filter(i=>!i.done).length && !items.length){
+      wrap.innerHTML=diffWarn+'<div class="hist-empty"><i class="fas fa-calendar-xmark" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.3"></i>لا توجد إشعارات مجدولة</div>';
+      return;
+    }
+    wrap.innerHTML=diffWarn+items.map(s=>`
+      <div class="sched-item type-${s.type||'info'}${s.done?' done-item':''}">
+        <div class="sched-item-body">
+          <div class="sched-item-title">${esc(s.title||'TALASHNY')}</div>
+          <div class="sched-item-text">${esc(s.text)}</div>
+          <div class="sched-item-time ${s.done?'done-badge':''}">
+            ${s.done?'<i class="fas fa-check"></i> تم الإرسال':'<i class="fas fa-clock"></i> '+fmtFireAt(s.fire_at_ts)}
+          </div>
+        </div>
+        ${!s.done?`<div class="sched-del" onclick="deleteSchedule('${esc(s.id)}')"><i class="fas fa-trash"></i></div>`:''}
+      </div>
+    `).join('');
+  }catch(e){
+    _('schedList').innerHTML='<div class="hist-empty">خطأ في التحميل</div>';
+  }
+}
+
+async function deleteSchedule(id){
+  const fd=new FormData(); fd.append('id',id);
+  await fetch('/schedule-delete',{method:'POST',body:fd});
+  showToast('🗑️ تم الحذف','ok');
+  loadSchedule();
+}
+
+async function loadHistory(){
+  try{
+    const r = await fetch('/broadcast-history');
+    const d = await r.json();
+    const wrap = _('histList');
+    if(!d.history?.length){
+      wrap.innerHTML='<div class="hist-empty"><i class="fas fa-inbox" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.3"></i>لا يوجد سجل بعد</div>';
+      return;
+    }
+    const typeIcon={info:'fa-bell',ok:'fa-circle-check',err:'fa-circle-exclamation'};
+    wrap.innerHTML = d.history.map(h=>`
+      <div class="hist-item type-${h.type||'info'}">
+        <div class="hist-item-body">
+          <div class="hist-item-title">${esc(h.title||'TALASHNY')}</div>
+          <div class="hist-item-text">${esc(h.text)}</div>
+          <div class="hist-item-meta">
+            <span class="hist-meta-chip hist-meta-time"><i class="fas fa-clock"></i>&nbsp;${esc(h.sent_at||'')}</span>
+            <span class="hist-meta-chip hist-meta-views"><i class="fas fa-eye"></i>&nbsp;${h.views||0} مشاهدة</span>
+          </div>
+        </div>
+        <div class="hist-resend" onclick="resendNotif(${JSON.stringify(h).replace(/"/g,'&quot;')})" title="إعادة إرسال">
+          <i class="fas fa-rotate-right"></i>
+        </div>
+      </div>
+    `).join('');
+  }catch{}
+}
+
+async function resendNotif(h){
+  _('notifTitleInput').value = h.title||'TALASHNY';
+  _('notifMsgInput').value   = h.text||'';
+  setType(h.type||'info');
+  updatePreview();
+  switchTab('send');
+  showToast('✏️ تم تحميل الإشعار — عدّله وابعته','ok');
+}
+
+function setDur(el, sec){
+  selectedDur = sec;
+  document.querySelectorAll('.dur-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+async function sendNotif(){
+  const title   = _('notifTitleInput').value.trim() || 'TALASHNY';
+  const text    = _('notifMsgInput').value.trim();
+  if(!text){ showToast('اكتب رسالة الأول','err'); return; }
+  const iconUrl = _('notifIconInput').value.trim();
+  const linkUrl = _('notifLinkInput').value.trim();
+  const btnLbl  = _('notifBtnInput').value.trim() || 'افتح الرابط';
+
+  const btn = document.querySelector('.btn-send-notif');
+  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>&nbsp;جاري الإرسال...';
+  try{
+    const fd=new FormData();
+    fd.append('text',text); fd.append('type',selectedType);
+    fd.append('title',title); fd.append('duration',selectedDur);
+    fd.append('icon', iconUrl); fd.append('link', linkUrl);
+    fd.append('btn_label', btnLbl);
+    const r=await fetch('/broadcast',{method:'POST',body:fd}); const d=await r.json();
+    if(d.ok){
+      showToast('✅ تم إرسال الإشعار للكل','ok');
+      closeAdmin();
+      showNotif(title, text, selectedType, Math.min(selectedDur*1000,8000), iconUrl, linkUrl, btnLbl);
+    }
+  }catch{ showToast('❌ خطأ في الإرسال','err'); }
+  btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i>&nbsp;إرسال للكل';
+}
+
+async function clearNotif(){
+  const fd=new FormData();
+  fd.append('text',''); fd.append('type','info');
+  fd.append('title','TALASHNY'); fd.append('duration','0');
+  await fetch('/broadcast',{method:'POST',body:fd});
+  showToast('✅ تم مسح الإشعار','ok');
+  lastBroadcast='';
+}
+
+/* ── RENDER ── */
+function renderCards(list,online){
+  const wrap=_('cardsWrap'), cnt=_('ccnt');
+  if(online!==undefined) _('st-online').textContent=online;
+  if(!list||!list.length){
+    cnt.textContent='0'; _('st-total').textContent='0'; _('st-max').textContent='—';
+    wrap.innerHTML='<div class="empty"><i class="fas fa-inbox"></i><p>لا توجد عروض متاحة الآن</p><small>يتجدد البحث تلقائياً...</small></div>';
+    return;
+  }
+  cnt.textContent=list.length+' كرت';
+  _('st-total').textContent=list.length;
+  _('st-max').textContent=Math.max(...list.map(c=>c.amount))+' ج';
+  wrap.innerHTML=list.map((p,i)=>{
+    const ussd='*858*'+p.serial.replace(/\s/g,'')+'#';
+    return`<div class="promo-card" style="--i:${i}">
+      <div class="card-stripe"></div>
+      <div class="card-body">
+        <div style="flex:1"><div class="card-chips">
+          <span class="chip chip-gold"><i class="fas fa-gift"></i>${esc(p.gift)} وحدة</span>
+          <span class="chip chip-blue"><i class="fas fa-rotate"></i>${esc(p.remaining)} متبقي</span>
+        </div></div>
+        <div class="card-amount">
+          <div class="amt-num">${esc(p.amount)}</div>
+          <div class="amt-cur">جنيه</div>
+        </div>
+      </div>
+      <div class="card-serial">
+        <span class="serial-val">${esc(p.serial)}</span>
+        <button onclick="copySerial(this)" class="btn-copy"><i class="fas fa-clone"></i></button>
+      </div>
+      <div class="card-btns">
+        <button class="btn-charge" onclick="chargeCard('${esc(p.serial)}','${esc(p.amount)}',this)">
+          <i class="fas fa-bolt"></i>&nbsp;<span>شحن أونلاين</span>
+        </button>
+        <a href="tel:${encodeURIComponent(ussd)}" class="btn-dial">
+          <i class="fas fa-phone"></i>&nbsp;<span>شحن بالهاتف</span>
+        </a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── TIMER ── */
+const CIRC=2*Math.PI*16;
+function startTimer(cb){
+  let t=15; const num=_('tnum'), prog=_('tprog');
+  if(!num||!prog) return;
+  prog.style.strokeDasharray=CIRC; prog.style.strokeDashoffset=0;
+  clearInterval(timerInt);
+  timerInt=setInterval(()=>{
+    t--; num.textContent=Math.max(t,0);
+    prog.style.strokeDashoffset=CIRC*(t/15);
+    prog.style.stroke=t<=4?'#ff3333':'var(--red)';
+    if(t<=0){ clearInterval(timerInt); setTimeout(cb,200); }
+  },1000);
+}
+
+let lastBroadcastId='';
+async function getCards(){
+  try{
+    const r=await fetch('/fetch?t='+Date.now()); const d=await r.json();
+    if(d.ok){
+      renderCards(d.promos,d.online);
+      const bc = d.broadcast;
+      if(bc?.text && bc.id && bc.id !== lastBroadcastId){
+        lastBroadcastId = bc.id;
+        fetch('/broadcast-view',{method:'POST'}).catch(()=>{});
+        playNotifSound();
+        showNotif(
+          bc.title||'TALASHNY', bc.text,
+          bc.type||'info',
+          Math.min((bc.duration||300)*1000, 8000),
+          bc.icon||'', bc.link||'', bc.btn_label||'افتح الرابط'
+        );
+      }
+    }
+  }catch{}
+}
+function startCycle(){ getCards(); startTimer(()=>startCycle()); }
+</script>
+</body>
+</html>"""
+
+# ══════════════════════════════════════════════════════
+#  ROUTES
+# ══════════════════════════════════════════════════════
+@app.route("/")
+def index():
+    return render_template_string(PAGE)
+
+@app.route("/check")
+def check():
+    if session.get("logged_in"):
+        sid = session.get("sid","")
+        if sid: update_online(sid)
+        return jsonify({"logged":True,"number":session.get("number","")})
+    return jsonify({"logged":False})
+
+@app.route("/login", methods=["POST"])
+def login():
+    number   = request.form.get("number","").strip()
+    password = request.form.get("password","").strip()
+    if not number or not password:
+        return jsonify({"ok":False,"error":"الرجاء إدخال رقم الموبايل وكلمة المرور"})
+    res = api_login(number, password)
+    if "access_token" in res:
+        import uuid
+        sid = str(uuid.uuid4())
+        session.clear()
+        session["logged_in"]  = True
+        session["token"]      = res["access_token"]
+        session["token_exp"]  = time.time() + int(res.get("expires_in",3600)) - 120
+        session["number"]     = number
+        session["password"]   = password
+        session["sid"]        = sid
+        update_online(sid)
+        return jsonify({"ok":True,"number":number})
+    return jsonify({"ok":False,"error":"الرقم أو الباسورد غلط — تحقق وحاول تاني"})
+
+@app.route("/ping")
+def ping():
+    sid = session.get("sid","")
+    if sid: update_online(sid)
+    return jsonify({"ok":True,"online":get_online_count()})
+
+@app.route("/fetch")
+def fetch():
+    if not session.get("logged_in"):
+        return jsonify({"ok":False})
+    sid = session.get("sid","")
+    if sid: update_online(sid)
+    do_refresh()
+    check_schedule_and_fire()   # ← تحقق من الجدولة مع كل fetch
+    return jsonify({
+        "ok":    True,
+        "promos":api_promos(session["token"],session["number"]),
+        "online":get_online_count(),
+        "broadcast": read_broadcast()
+    })
+
+@app.route("/broadcast", methods=["POST"])
+def broadcast():
+    text      = request.form.get("text","")
+    typ       = request.form.get("type","info")
+    title     = request.form.get("title","TALASHNY")
+    duration  = int(request.form.get("duration", 300))
+    icon      = request.form.get("icon","")
+    link      = request.form.get("link","")
+    btn_label = request.form.get("btn_label","افتح الرابط")
+    write_broadcast(text, typ, title, duration, icon, link, btn_label)
+    return jsonify({"ok":True})
+
+@app.route("/broadcast-view", methods=["POST"])
+def broadcast_view():
+    try:
+        if os.path.exists(BROADCAST_FILE):
+            with open(BROADCAST_FILE,"r",encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("text") and data.get("expire",0) > time.time():
+                data["views"] = data.get("views",0) + 1
+                bid = data.get("id","")
+                with open(BROADCAST_FILE,"w",encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False)
+                # حدّث السجل كمان
+                if bid and os.path.exists(HISTORY_FILE):
+                    with open(HISTORY_FILE,"r",encoding="utf-8") as f:
+                        history = json.load(f)
+                    for h in history:
+                        if h.get("id") == bid:
+                            h["views"] = data["views"]; break
+                    with open(HISTORY_FILE,"w",encoding="utf-8") as f:
+                        json.dump(history, f, ensure_ascii=False)
+    except: pass
+    return jsonify({"ok":True})
+
+@app.route("/broadcast-history")
+def broadcast_history():
+    try:
+        if not os.path.exists(HISTORY_FILE):
+            return jsonify({"ok":True,"history":[]})
+        with open(HISTORY_FILE,"r",encoding="utf-8") as f:
+            history = json.load(f)
+        return jsonify({"ok":True,"history":history})
+    except:
+        return jsonify({"ok":True,"history":[]})
+
+@app.route("/schedule-add", methods=["POST"])
+def schedule_add():
+    import uuid as _u
+    try:
+        fire_at_ts = float(request.form.get("fire_at_ts", 0))  # unix timestamp من المتصفح
+        fire_at    = request.form.get("fire_at","")            # نص للعرض فقط
+        text       = request.form.get("text","").strip()
+        typ        = request.form.get("type","info")
+        title      = request.form.get("title","TALASHNY")
+        duration   = int(request.form.get("duration",300))
+        icon       = request.form.get("icon","")
+        link       = request.form.get("link","")
+        btn_lbl    = request.form.get("btn_label","افتح الرابط")
+        if not fire_at_ts or not text:
+            return jsonify({"ok":False,"error":"بيانات ناقصة"})
+        if fire_at_ts <= time.time():
+            return jsonify({"ok":False,"error":"الوقت لازم يكون في المستقبل"})
+        items = read_schedule()
+        items.append({
+            "id":        str(_u.uuid4())[:8],
+            "fire_at":   fire_at,
+            "fire_at_ts":fire_at_ts,
+            "text":      text,
+            "type":      typ,
+            "title":     title,
+            "duration":  duration,
+            "icon":      icon,
+            "link":      link,
+            "btn_label": btn_lbl,
+            "done":      False
+        })
+        write_schedule(items)
+        return jsonify({"ok":True})
+    except Exception as e:
+        return jsonify({"ok":False,"error":str(e)})
+
+@app.route("/schedule-list")
+def schedule_list():
+    items   = read_schedule()
+    cutoff  = time.time() - 86400
+    items   = [i for i in items if not (i.get("done") and float(i.get("fire_at_ts",0)) < cutoff)]
+    write_schedule(items)
+    return jsonify({"ok":True,"items":items,"server_time":time.time()})
+
+@app.route("/schedule-debug")
+def schedule_debug():
+    """للتشخيص — يوضح الوقت الحالي للسيرفر والإشعارات المجدولة"""
+    return jsonify({
+        "server_time":    time.time(),
+        "server_time_hr": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "items":          read_schedule()
+    })
+
+@app.route("/schedule-delete", methods=["POST"])
+def schedule_delete():
+    sid   = request.form.get("id","")
+    items = [i for i in read_schedule() if i.get("id") != sid]
+    write_schedule(items)
+    return jsonify({"ok":True})
+
+@app.route("/admin-stats")
+def admin_stats():
+    today = get_today()
+    with daily_lock:
+        count = daily_charges.get("count",0) if daily_charges.get("date")==today else 0
+    # عداد المشاهدات
+    views = 0
+    try:
+        bc = read_broadcast()
+        views = bc.get("views",0) if bc.get("text") else 0
+    except: pass
+    return jsonify({"ok":True,"online":get_online_count(),"today":count,"views":views})
+
+@app.route("/redeem")
+def redeem():
+    if not session.get("logged_in"):
+        return jsonify({"ok":False})
+    do_refresh()
+    serial = request.args.get("serial","").strip()
+    amount = request.args.get("amount","?")
+    code   = api_redeem(session["token"],session["number"],serial)
+    if code == 200:
+        record_charge(session["number"], serial, amount)
+    return jsonify({"ok":code==200,"code":code})
+
+@app.route("/logout")
+def logout():
+    sid = session.get("sid","")
+    if sid:
+        with online_lock:
+            online_users.pop(sid, None)
+    session.clear()
+    return jsonify({"ok":True})
+
+# ══════════════════════════════════════════════════════
+if __name__ == "__main__":
+    print("\n"+"═"*40)
+    print("  TALASHNY  |  http://localhost:5000")
+    print("═"*40+"\n")
+    app.run(host="0.0.0.0", port=5000, debug=False)
