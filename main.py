@@ -15,6 +15,34 @@ except ImportError:
 import time, threading, urllib3, datetime, json, os
 urllib3.disable_warnings()
 
+# ══════════════════════════════════════════════════════
+#  LOGOUT TIMESTAMP — لمنع إعادة استخدام الجلسة القديمة
+# ══════════════════════════════════════════════════════
+LOGOUT_FILE = "/tmp/logout_times.json"
+logout_lock = threading.Lock()
+
+def save_logout_time(number):
+    """احفظ وقت آخر logout لكل رقم"""
+    with logout_lock:
+        try:
+            data = {}
+            if os.path.exists(LOGOUT_FILE):
+                with open(LOGOUT_FILE,"r") as f:
+                    data = json.load(f)
+            data[number] = time.time()
+            with open(LOGOUT_FILE,"w") as f:
+                json.dump(data, f)
+        except: pass
+
+def get_logout_time(number):
+    """جيب وقت آخر logout للرقم ده"""
+    try:
+        if not os.path.exists(LOGOUT_FILE): return 0
+        with open(LOGOUT_FILE,"r") as f:
+            data = json.load(f)
+        return data.get(number, 0)
+    except: return 0
+
 app = Flask(__name__)
 app.secret_key = "vf_talashny_2025"
 # ← إصلاح 1: الجلسة SESSION_COOKIE_SAMESITE و SESSION_COOKIE_HTTPONLY
@@ -1427,6 +1455,13 @@ let lastBroadcastId='';
 async function getCards(){
   try{
     const r=await fetch('/fetch?t='+Date.now()); const d=await r.json();
+    // لو الجلسة انتهت من السيرفر → روح لتسجيل الدخول
+    if(!d.ok && d.reason==='session_expired'){
+      clearInterval(timerInt); stopPing();
+      goTo('s-login');
+      _('inpNum').value=''; _('inpPw').value='';
+      return;
+    }
     if(d.ok){
       renderCards(d.promos,d.online);
       const bc=d.broadcast;
@@ -1454,9 +1489,18 @@ def index():
 @app.route("/check")
 def check():
     if session.get("logged_in"):
+        number     = session.get("number","")
+        login_time = session.get("login_time", 0)
+        logout_t   = get_logout_time(number)
+        # لو الجلسة أتعملت قبل آخر logout → ارفضها وامسحها
+        if login_time <= logout_t:
+            session.clear()
+            resp = jsonify({"logged": False})
+            resp.delete_cookie("session")
+            return resp
         sid = session.get("sid","")
         if sid: update_online(sid)
-        return jsonify({"logged":True,"number":session.get("number","")})
+        return jsonify({"logged":True,"number":number})
     return jsonify({"logged":False})
 
 @app.route("/login", methods=["POST"])
@@ -1476,6 +1520,7 @@ def login():
         session["number"]     = number
         session["password"]   = password
         session["sid"]        = sid
+        session["login_time"] = time.time()   # ← وقت تسجيل الدخول
         update_online(sid)
         return jsonify({"ok":True,"number":number})
     return jsonify({"ok":False,"error":"الرقم أو الباسورد غلط — تحقق وحاول تاني"})
@@ -1490,6 +1535,12 @@ def ping():
 def fetch():
     if not session.get("logged_in"):
         return jsonify({"ok":False})
+    # تحقق إن الجلسة مش قديمة (قبل آخر logout)
+    number     = session.get("number","")
+    login_time = session.get("login_time", 0)
+    if login_time <= get_logout_time(number):
+        session.clear()
+        return jsonify({"ok":False, "reason":"session_expired"})
     sid = session.get("sid","")
     if sid: update_online(sid)
     do_refresh()
@@ -1629,17 +1680,21 @@ def redeem():
         record_charge(session["number"], serial, amount)
     return jsonify({"ok":code==200,"code":code})
 
-# ←← إصلاح الـ LOGOUT: POST بدل GET + مسح الكوكيز صح
+# ←← إصلاح الـ LOGOUT: POST بدل GET + مسح الكوكيز + حفظ وقت الـ logout
 @app.route("/logout", methods=["GET","POST"])
 def logout():
-    sid = session.get("sid","")
+    sid    = session.get("sid","")
+    number = session.get("number","")
     if sid:
         with online_lock:
             online_users.pop(sid, None)
+    # ← احفظ وقت الـ logout قبل مسح الجلسة
+    if number:
+        save_logout_time(number)
     session.clear()
     resp = jsonify({"ok":True})
-    # ← امسح الكوكيز من البراوزر كمان
-    resp.delete_cookie('session')
+    # ← امسح الكوكيز من البراوزر
+    resp.delete_cookie("session")
     return resp
 
 # ══════════════════════════════════════════════════════
