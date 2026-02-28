@@ -15,40 +15,8 @@ except ImportError:
 import time, threading, urllib3, datetime, json, os
 urllib3.disable_warnings()
 
-# ══════════════════════════════════════════════════════
-#  LOGOUT TIMESTAMP — لمنع إعادة استخدام الجلسة القديمة
-# ══════════════════════════════════════════════════════
-LOGOUT_FILE = "/tmp/logout_times.json"
-logout_lock = threading.Lock()
-
-def save_logout_time(number):
-    """احفظ وقت آخر logout لكل رقم"""
-    with logout_lock:
-        try:
-            data = {}
-            if os.path.exists(LOGOUT_FILE):
-                with open(LOGOUT_FILE,"r") as f:
-                    data = json.load(f)
-            data[number] = time.time()
-            with open(LOGOUT_FILE,"w") as f:
-                json.dump(data, f)
-        except: pass
-
-def get_logout_time(number):
-    """جيب وقت آخر logout للرقم ده"""
-    try:
-        if not os.path.exists(LOGOUT_FILE): return 0
-        with open(LOGOUT_FILE,"r") as f:
-            data = json.load(f)
-        return data.get(number, 0)
-    except: return 0
-
 app = Flask(__name__)
 app.secret_key = "vf_talashny_2025"
-# ← إصلاح 1: الجلسة SESSION_COOKIE_SAMESITE و SESSION_COOKIE_HTTPONLY
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # ساعة بس
 
 # ══════════════════════════════════════════════════════
 #  TELEGRAM CONFIG
@@ -66,7 +34,7 @@ def tg_send(msg):
     except: pass
 
 # ══════════════════════════════════════════════════════
-#  BROADCAST MESSAGE
+#  BROADCAST MESSAGE — مخزّن في ملف JSON
 # ══════════════════════════════════════════════════════
 BROADCAST_FILE = "/tmp/broadcast.json"
 HISTORY_FILE   = "/tmp/broadcast_history.json"
@@ -104,6 +72,7 @@ def write_broadcast(text, typ, title, duration=300, icon='', link='', btn_label=
         }
         with open(BROADCAST_FILE,"w",encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
+        # أضف للسجل لو في نص
         if text:
             save_history(data)
     except: pass
@@ -122,7 +91,7 @@ def save_history(data):
             "sent_at":  data.get("sent_at",""),
             "views":    0
         })
-        history = history[:20]
+        history = history[:20]  # آخر 20 إشعار بس
         with open(HISTORY_FILE,"w",encoding="utf-8") as f:
             json.dump(history, f, ensure_ascii=False)
     except: pass
@@ -179,7 +148,7 @@ def daily_report_loop():
 threading.Thread(target=daily_report_loop, daemon=True).start()
 
 # ══════════════════════════════════════════════════════
-#  SCHEDULER
+#  SCHEDULER — جدولة الإشعارات
 # ══════════════════════════════════════════════════════
 SCHEDULE_FILE = "/tmp/broadcast_schedule.json"
 sched_lock    = threading.Lock()
@@ -198,6 +167,7 @@ def write_schedule(items):
     except: pass
 
 def check_schedule_and_fire():
+    """يتحقق من الجدولة — بيتستدعى مع كل /fetch"""
     try:
         now_ts  = time.time()
         items   = read_schedule()
@@ -226,6 +196,7 @@ def check_schedule_and_fire():
         pass
 
 def scheduler_loop():
+    """كل 15 ثانية يتحقق من الإشعارات المجدولة"""
     while True:
         time.sleep(15)
         check_schedule_and_fire()
@@ -352,10 +323,17 @@ html,body{width:100%;height:100%;overflow:hidden}
 body{font-family:'Alexandria',sans-serif;background:var(--dark);color:var(--text)}
 img{pointer-events:none;-webkit-user-drag:none}
 
-*{-webkit-user-select:none;-moz-user-select:none;user-select:none;}
-input, textarea{-webkit-user-select:text;user-select:text;}
+/* ══ حماية النسخ ══ */
+*{
+  -webkit-user-select:none;
+  -moz-user-select:none;
+  user-select:none;
+}
+input, textarea{
+  -webkit-user-select:text;
+  user-select:text;
+}
 
-/* ══ SCREENS ══ */
 .screen{
   position:fixed;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;
@@ -364,17 +342,13 @@ input, textarea{-webkit-user-select:text;user-select:text;}
   z-index:10;overflow:hidden;
   transition:opacity .38s ease;
 }
-.screen.active{opacity:1;pointer-events:all;z-index:20;}
+.screen.active{
+  opacity:1;pointer-events:all;z-index:20;
+}
 
 /* ════════ SPLASH ════════ */
-#s-splash{
-  background:#0a0a0a;
-  z-index:100;
-  /* ← إصلاح: السبلاش شاشة ثابتة زي باقي الشاشات */
-}
-#s-splash.active{z-index:100;}
-
-/* تأخير الأنيميشن عشان تبان كويس */
+#s-splash{background:#0a0a0a;z-index:50;}
+#s-splash.active{z-index:50;}
 .crescent-box{
   position:relative;width:240px;height:240px;
   display:flex;align-items:center;justify-content:center;
@@ -385,7 +359,7 @@ input, textarea{-webkit-user-select:text;user-select:text;}
 .crescent-box svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
 .vf-logo{
   position:relative;z-index:5;width:120px;
-  opacity:0;transform:scale(.1);
+  opacity:0;transform:scale(.1) translate(0,0);
   animation:logoIn 1.1s cubic-bezier(.34,1.5,.64,1) 1.8s forwards;
   filter:drop-shadow(0 2px 14px rgba(255,255,255,.18));
 }
@@ -439,7 +413,10 @@ input, textarea{-webkit-user-select:text;user-select:text;}
 }
 .card-sep::before,.card-sep::after{content:'';flex:1;height:1px;background:var(--border);}
 .field{margin-bottom:12px;}
-.field label{display:block;font-size:.56rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:6px;transition:color .2s;}
+.field label{
+  display:block;font-size:.56rem;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--text3);margin-bottom:6px;transition:color .2s;
+}
 .field:focus-within label{color:rgba(230,0,0,.8);}
 .input-box{
   display:flex;align-items:center;
@@ -500,7 +477,10 @@ input, textarea{-webkit-user-select:text;user-select:text;}
 .tbar-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;}
 .tbar-num{font-size:.73rem;font-weight:800;color:var(--text);}
 .tbar-live{display:flex;align-items:center;gap:4px;font-size:.5rem;font-weight:700;color:var(--green);}
-.live-dot{width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0;animation:livePulse 2s infinite;cursor:pointer;}
+.live-dot{
+  width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0;
+  animation:livePulse 2s infinite;cursor:pointer;
+}
 @keyframes livePulse{0%,100%{box-shadow:0 0 0 0 rgba(0,200,90,.5);}70%{box-shadow:0 0 0 5px rgba(0,200,90,0);}}
 .appwrap{width:100%;max-width:480px;margin:0 auto;padding:14px 13px 90px;}
 .toprow{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
@@ -513,7 +493,11 @@ input, textarea{-webkit-user-select:text;user-select:text;}
 }
 .btn-logout:hover{border-color:var(--border-red);color:var(--red);background:rgba(230,0,0,.05);}
 .stats-bar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;}
-.stat{background:var(--dark2);border:1px solid var(--border);border-radius:var(--r);padding:12px 8px;text-align:center;position:relative;overflow:hidden;}
+.stat{
+  background:var(--dark2);border:1px solid var(--border);
+  border-radius:var(--r);padding:12px 8px;text-align:center;
+  position:relative;overflow:hidden;
+}
 .stat::before{content:'';position:absolute;top:0;left:0;right:0;height:2.5px;}
 .stat.s-red::before{background:var(--red);}
 .stat.s-gold::before{background:var(--gold);}
@@ -523,28 +507,52 @@ input, textarea{-webkit-user-select:text;user-select:text;}
 .stat.s-gold .stat-val{color:var(--gold);}
 .stat.s-green .stat-val{color:var(--green);}
 .stat-lbl{font-size:.49rem;font-weight:700;color:var(--text3);letter-spacing:.5px;margin-top:4px;}
-.timer-row{display:flex;align-items:center;gap:11px;background:var(--dark2);border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 13px;margin-bottom:12px;}
+.timer-row{
+  display:flex;align-items:center;gap:11px;
+  background:var(--dark2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:10px 13px;margin-bottom:12px;
+}
 .t-ring{width:36px;height:36px;flex-shrink:0;position:relative;}
 .t-ring svg{width:36px;height:36px;transform:rotate(-90deg);}
 .t-bg{fill:none;stroke:rgba(255,255,255,.05);stroke-width:3;}
-.t-prog{fill:none;stroke:var(--red);stroke-width:3;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:0;transition:stroke-dashoffset .9s linear,stroke .3s;filter:drop-shadow(0 0 3px rgba(230,0,0,.6));}
+.t-prog{
+  fill:none;stroke:var(--red);stroke-width:3;stroke-linecap:round;
+  stroke-dasharray:100;stroke-dashoffset:0;
+  transition:stroke-dashoffset .9s linear,stroke .3s;
+  filter:drop-shadow(0 0 3px rgba(230,0,0,.6));
+}
 .t-count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.63rem;font-weight:900;}
 .t-info{flex:1;}
 .t-label{font-size:.7rem;font-weight:700;color:var(--text2);}
 .t-sub{font-size:.52rem;color:var(--text3);margin-top:1px;}
-.live-badge{display:flex;align-items:center;gap:4px;background:rgba(230,0,0,.08);border:1px solid rgba(230,0,0,.2);border-radius:100px;padding:4px 10px;font-size:.5rem;font-weight:800;color:var(--red);letter-spacing:1.5px;}
+.live-badge{
+  display:flex;align-items:center;gap:4px;
+  background:rgba(230,0,0,.08);border:1px solid rgba(230,0,0,.2);
+  border-radius:100px;padding:4px 10px;
+  font-size:.5rem;font-weight:800;color:var(--red);letter-spacing:1.5px;
+}
 .lb-dot{width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0;animation:blink 1s infinite;}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.1}}
 .sec-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .sec-title{font-size:.57rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);display:flex;align-items:center;gap:7px;}
 .sec-line{width:13px;height:2px;border-radius:2px;background:var(--red);}
 .sec-badge{font-size:.57rem;font-weight:700;color:var(--text3);background:var(--dark3);border:1px solid var(--border);padding:3px 10px;border-radius:100px;}
-.promo-card{background:var(--dark2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:9px;overflow:hidden;animation:cardIn .4s cubic-bezier(.34,1.2,.64,1) both;animation-delay:calc(var(--i,0)*.07s);transition:border-color .2s,transform .2s,box-shadow .2s;will-change:transform;}
+.promo-card{
+  background:var(--dark2);border:1px solid var(--border);
+  border-radius:var(--r);margin-bottom:9px;overflow:hidden;
+  animation:cardIn .4s cubic-bezier(.34,1.2,.64,1) both;
+  animation-delay:calc(var(--i,0)*.07s);
+  transition:border-color .2s,transform .2s,box-shadow .2s;
+  will-change:transform;
+}
 .promo-card:active{transform:scale(.98);box-shadow:0 2px 8px rgba(0,0,0,.4);}
 @keyframes cardIn{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
 .card-stripe{height:3px;background:linear-gradient(90deg,var(--red),rgba(230,0,0,.2),transparent);}
 .card-body{display:flex;align-items:stretch;padding:13px 13px 0;}
-.card-amount{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:64px;padding-left:13px;border-left:1px solid var(--border);margin-left:13px;}
+.card-amount{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-width:64px;padding-left:13px;border-left:1px solid var(--border);margin-left:13px;
+}
 .amt-num{font-size:1.95rem;font-weight:900;color:var(--text);line-height:1;}
 .amt-cur{font-size:.49rem;font-weight:700;color:var(--text3);letter-spacing:1px;margin-top:2px;}
 .card-chips{display:flex;gap:5px;flex-wrap:wrap;}
@@ -553,125 +561,363 @@ input, textarea{-webkit-user-select:text;user-select:text;}
 .chip-gold{background:rgba(232,199,111,.07);color:#e8c76f;border:1px solid rgba(232,199,111,.14);}
 .chip-blue{background:rgba(79,195,247,.06);color:#80ccee;border:1px solid rgba(79,195,247,.11);}
 .chip i{font-size:.47rem;}
-.card-serial{display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,.2);margin:11px 0 0;padding:9px 13px;border-top:1px solid var(--border);gap:8px;}
+.card-serial{
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(0,0,0,.2);margin:11px 0 0;padding:9px 13px;
+  border-top:1px solid var(--border);gap:8px;
+}
 .serial-val{font-family:monospace;font-size:.86rem;letter-spacing:2px;color:var(--text);font-weight:600;flex:1;text-align:right;}
-.btn-copy{width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);transition:all .2s;flex-shrink:0;}
+.btn-copy{
+  width:28px;height:28px;border-radius:8px;
+  background:rgba(255,255,255,.04);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text3);transition:all .2s;flex-shrink:0;
+}
 .btn-copy:hover{background:rgba(230,0,0,.1);border-color:rgba(230,0,0,.3);color:var(--red);}
 .btn-copy:active{transform:scale(.8);}
 .btn-copy i{font-size:.58rem;}
 .card-btns{display:flex;gap:7px;padding:9px;}
-.btn-charge{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:10px 6px;border:none;border-radius:var(--r-sm);background:var(--red);color:#fff;font-family:'Alexandria',sans-serif;font-size:.7rem;font-weight:800;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 3px 12px rgba(230,0,0,.24);transition:all .2s;}
+.btn-charge{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:5px;
+  padding:10px 6px;border:none;border-radius:var(--r-sm);
+  background:var(--red);color:#fff;
+  font-family:'Alexandria',sans-serif;font-size:.7rem;font-weight:800;
+  cursor:pointer;position:relative;overflow:hidden;
+  box-shadow:0 3px 12px rgba(230,0,0,.24);transition:all .2s;
+}
 .btn-charge::before{content:'';position:absolute;top:0;left:0;right:0;height:50%;background:rgba(255,255,255,.06);}
 .btn-charge:hover{background:var(--red3);transform:translateY(-1px);box-shadow:0 5px 18px rgba(230,0,0,.34);}
 .btn-charge:active{transform:scale(.95);}
 .btn-charge.done{background:#00a040;box-shadow:0 3px 12px rgba(0,160,64,.25);}
 .btn-charge.loading{opacity:.55;pointer-events:none;}
-.btn-dial{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;padding:10px 6px;border-radius:var(--r-sm);background:var(--dark3);border:1px solid var(--border);color:var(--text2);font-family:'Alexandria',sans-serif;font-size:.7rem;font-weight:800;cursor:pointer;text-decoration:none;transition:all .2s;}
+.btn-dial{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:5px;
+  padding:10px 6px;border-radius:var(--r-sm);
+  background:var(--dark3);border:1px solid var(--border);
+  color:var(--text2);font-family:'Alexandria',sans-serif;font-size:.7rem;font-weight:800;
+  cursor:pointer;text-decoration:none;transition:all .2s;
+}
 .btn-dial:hover{background:var(--dark4);color:var(--text);}
 .btn-dial:active{transform:scale(.95);}
 .empty{text-align:center;padding:46px 20px;background:var(--dark2);border:1px solid var(--border);border-radius:var(--r);}
 .empty i{font-size:2rem;color:var(--text3);display:block;margin-bottom:10px;}
 .empty p{font-size:.8rem;color:var(--text2);}
 .empty small{font-size:.6rem;color:var(--text3);display:block;margin-top:4px;}
-.botnav{position:fixed;bottom:0;left:0;right:0;height:60px;background:rgba(8,8,8,.97);backdrop-filter:blur(22px);border-top:1px solid var(--border);display:flex;justify-content:space-around;align-items:stretch;z-index:400;}
-.nav-link{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-decoration:none;color:var(--text3);font-size:.49rem;font-weight:700;letter-spacing:.5px;border-top:2px solid transparent;transition:color .2s,border-color .2s;}
+.botnav{
+  position:fixed;bottom:0;left:0;right:0;height:60px;
+  background:rgba(8,8,8,.97);backdrop-filter:blur(22px);
+  border-top:1px solid var(--border);
+  display:flex;justify-content:space-around;align-items:stretch;z-index:400;
+}
+.nav-link{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;text-decoration:none;color:var(--text3);
+  font-size:.49rem;font-weight:700;letter-spacing:.5px;
+  border-top:2px solid transparent;transition:color .2s,border-color .2s;
+}
 .nav-link:hover{color:var(--red);border-color:var(--red);}
 .nav-link i{font-size:1.05rem;}
-.toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%) translateY(12px);opacity:0;background:rgba(8,8,8,.96);border:1px solid var(--border);border-radius:100px;padding:9px 22px;font-family:'Alexandria',sans-serif;font-size:.7rem;font-weight:700;color:var(--text);pointer-events:none;z-index:9998;white-space:nowrap;backdrop-filter:blur(20px);box-shadow:0 8px 28px rgba(0,0,0,.6);transition:all .3s cubic-bezier(.34,1.4,.64,1);}
+.toast{
+  position:fixed;bottom:70px;left:50%;
+  transform:translateX(-50%) translateY(12px);opacity:0;
+  background:rgba(8,8,8,.96);border:1px solid var(--border);
+  border-radius:100px;padding:9px 22px;
+  font-family:'Alexandria',sans-serif;font-size:.7rem;font-weight:700;color:var(--text);
+  pointer-events:none;z-index:9998;white-space:nowrap;backdrop-filter:blur(20px);
+  box-shadow:0 8px 28px rgba(0,0,0,.6);
+  transition:all .3s cubic-bezier(.34,1.4,.64,1);
+}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .toast.ok{border-color:rgba(0,200,90,.3);color:var(--green);}
 .toast.err{border-color:rgba(230,0,0,.3);color:#ff5555;}
 
-/* SLIDE NOTIFICATION */
-.notif-slide{position:fixed;top:70px;left:-360px;width:320px;background:rgba(12,12,12,.98);border:1px solid var(--border);border-right:3px solid var(--red);border-radius:16px;padding:13px 14px 10px;z-index:9999;backdrop-filter:blur(24px);box-shadow:0 10px 40px rgba(0,0,0,.8),0 0 0 1px rgba(230,0,0,.05);transition:left .45s cubic-bezier(.34,1.15,.64,1);pointer-events:none;cursor:default;}
+/* ════════ SLIDE NOTIFICATION ════════ */
+.notif-slide{
+  position:fixed;top:70px;left:-360px;
+  width:320px;
+  background:rgba(12,12,12,.98);
+  border:1px solid var(--border);
+  border-right:3px solid var(--red);
+  border-radius:16px;
+  padding:13px 14px 10px;
+  z-index:9999;
+  backdrop-filter:blur(24px);
+  box-shadow:0 10px 40px rgba(0,0,0,.8),0 0 0 1px rgba(230,0,0,.05);
+  transition:left .45s cubic-bezier(.34,1.15,.64,1);
+  pointer-events:none;
+  cursor:default;
+}
 .notif-slide.show{left:10px;pointer-events:all;}
 .notif-slide.has-link{cursor:pointer;}
-.notif-slide.has-link:hover{border-color:rgba(230,0,0,.3);}
-.notif-slide:active{transform:scale(.98);}
+.notif-slide.has-link:hover{ border-color:rgba(230,0,0,.3); }
+.notif-slide:active{ transform:scale(.98); }
+
 .notif-top-row{display:flex;align-items:flex-start;gap:11px;}
-.notif-slide-icon{width:38px;height:38px;border-radius:10px;background:rgba(230,0,0,.1);border:1px solid rgba(230,0,0,.2);display:flex;align-items:center;justify-content:center;color:var(--red);font-size:.95rem;flex-shrink:0;overflow:hidden;}
+.notif-slide-icon{
+  width:38px;height:38px;border-radius:10px;
+  background:rgba(230,0,0,.1);border:1px solid rgba(230,0,0,.2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--red);font-size:.95rem;flex-shrink:0;overflow:hidden;
+}
 .notif-slide-icon img{width:100%;height:100%;object-fit:cover;border-radius:10px;}
 .notif-slide-body{flex:1;min-width:0;}
-.notif-slide-title{font-size:.68rem;font-weight:800;color:var(--text);display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:2px;}
+.notif-slide-title{
+  font-size:.68rem;font-weight:800;color:var(--text);
+  display:flex;align-items:center;justify-content:space-between;gap:6px;
+  margin-bottom:2px;
+}
 .notif-slide-app{font-size:.48rem;color:var(--text3);font-weight:700;letter-spacing:1px;}
 .notif-slide-text{font-size:.62rem;color:var(--text2);line-height:1.5;word-break:break-word;margin-top:2px;}
-.notif-action-btn{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:10px;padding:8px 14px;background:rgba(230,0,0,.09);border:1px solid rgba(230,0,0,.2);border-radius:8px;font-family:'Alexandria',sans-serif;font-size:.62rem;font-weight:800;color:var(--red);cursor:pointer;text-decoration:none;transition:background .2s,border-color .2s;width:100%;text-align:center;}
+
+/* زرار الرابط */
+.notif-action-btn{
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  margin-top:10px;
+  padding:8px 14px;
+  background:rgba(230,0,0,.09);
+  border:1px solid rgba(230,0,0,.2);
+  border-radius:8px;
+  font-family:'Alexandria',sans-serif;
+  font-size:.62rem;font-weight:800;color:var(--red);
+  cursor:pointer;text-decoration:none;
+  transition:background .2s,border-color .2s;
+  width:100%;text-align:center;
+}
 .notif-action-btn:hover{background:rgba(230,0,0,.15);border-color:rgba(230,0,0,.35);}
 .notif-action-btn i{font-size:.55rem;}
-.notif-bar{position:absolute;bottom:0;left:0;right:0;height:2px;background:rgba(230,0,0,.1);border-radius:0 0 16px 16px;overflow:hidden;}
-.notif-bar-fill{height:100%;background:var(--red);width:100%;transform-origin:right;}
 
-/* ADMIN OVERLAY */
-.admin-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(18px);z-index:10000;display:flex;align-items:flex-end;justify-content:center;padding:0;opacity:0;pointer-events:none;transition:opacity .3s ease;}
+.notif-bar{
+  position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:rgba(230,0,0,.1);border-radius:0 0 16px 16px;overflow:hidden;
+}
+.notif-bar-fill{
+  height:100%;background:var(--red);width:100%;
+  transform-origin:right;
+}
+
+/* ════════ ADMIN OVERLAY ════════ */
+.admin-overlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.88);
+  backdrop-filter:blur(18px);
+  z-index:10000;
+  display:flex;align-items:flex-end;justify-content:center;
+  padding:0;
+  opacity:0;pointer-events:none;
+  transition:opacity .3s ease;
+}
 .admin-overlay.open{opacity:1;pointer-events:all;}
-.admin-panel{width:100%;max-width:460px;background:var(--dark2);border:1px solid var(--border);border-radius:22px 22px 0 0;box-shadow:0 -10px 60px rgba(0,0,0,.9);transform:translateY(100%);transition:transform .38s cubic-bezier(.34,1.1,.64,1);display:flex;flex-direction:column;height:92vh;max-height:92vh;overflow:hidden;}
+
+.admin-panel{
+  width:100%;max-width:460px;
+  background:var(--dark2);
+  border:1px solid var(--border);
+  border-radius:22px 22px 0 0;
+  box-shadow:0 -10px 60px rgba(0,0,0,.9);
+  transform:translateY(100%);
+  transition:transform .38s cubic-bezier(.34,1.1,.64,1);
+  display:flex;flex-direction:column;
+  height:92vh;max-height:92vh;
+  overflow:hidden;
+}
 .admin-overlay.open .admin-panel{transform:translateY(0);}
-.admin-drag-bar{width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);margin:10px auto 0;flex-shrink:0;}
-.admin-head{background:linear-gradient(135deg,rgba(230,0,0,.12),rgba(0,0,0,.0));border-bottom:1px solid var(--border);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+
+.admin-drag-bar{
+  width:40px;height:4px;border-radius:2px;
+  background:rgba(255,255,255,.15);
+  margin:10px auto 0;flex-shrink:0;
+}
+
+.admin-head{
+  background:linear-gradient(135deg,rgba(230,0,0,.12),rgba(0,0,0,.0));
+  border-bottom:1px solid var(--border);
+  padding:14px 18px;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
 .admin-head-left{display:flex;align-items:center;gap:11px;}
-.admin-head-icon{width:38px;height:38px;border-radius:10px;background:rgba(230,0,0,.1);border:1px solid rgba(230,0,0,.2);display:flex;align-items:center;justify-content:center;color:var(--red);font-size:.9rem;}
+.admin-head-icon{
+  width:38px;height:38px;border-radius:10px;
+  background:rgba(230,0,0,.1);border:1px solid rgba(230,0,0,.2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--red);font-size:.9rem;
+}
 .admin-head-title{font-size:.88rem;font-weight:900;letter-spacing:2px;color:var(--text);}
 .admin-head-sub{font-size:.52rem;color:var(--text3);margin-top:2px;letter-spacing:1px;}
-.admin-close{width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text3);font-size:.7rem;transition:all .2s;}
+.admin-close{
+  width:32px;height:32px;border-radius:8px;
+  background:rgba(255,255,255,.04);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text3);font-size:.7rem;
+  transition:all .2s;
+}
 .admin-close:hover{background:rgba(230,0,0,.1);border-color:rgba(230,0,0,.3);color:var(--red);}
-.admin-auth{padding:22px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;}
-.admin-auth-title{font-size:.65rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);text-align:center;margin-bottom:16px;}
-.pin-dots{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px;}
-.pin-dot{width:12px;height:12px;border-radius:50%;background:var(--dark3);border:1.5px solid var(--border);transition:all .2s;}
+
+/* Auth layer */
+.admin-auth{
+  padding:22px 20px;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  flex:1;
+}
+.admin-auth-title{
+  font-size:.65rem;font-weight:700;letter-spacing:2px;
+  text-transform:uppercase;color:var(--text3);
+  text-align:center;margin-bottom:16px;
+}
+.pin-dots{
+  display:flex;align-items:center;justify-content:center;
+  gap:10px;margin-bottom:20px;
+}
+.pin-dot{
+  width:12px;height:12px;border-radius:50%;
+  background:var(--dark3);border:1.5px solid var(--border);
+  transition:all .2s;
+}
 .pin-dot.filled{background:var(--red);border-color:var(--red);box-shadow:0 0 8px rgba(230,0,0,.5);}
 .pin-dot.err{background:#ff4444;border-color:#ff4444;animation:shake .3s ease;}
-.pw-field-wrap{background:var(--dark3);border:1.5px solid var(--border);border-radius:var(--r-sm);display:flex;align-items:center;margin-bottom:13px;transition:border-color .25s;}
+.pw-field-wrap{
+  background:var(--dark3);border:1.5px solid var(--border);
+  border-radius:var(--r-sm);display:flex;align-items:center;
+  margin-bottom:13px;transition:border-color .25s;
+}
 .pw-field-wrap:focus-within{border-color:var(--border-red);}
-.pw-field-wrap input{flex:1;background:none;border:none;outline:none;font-family:'Alexandria',sans-serif;font-size:.88rem;font-weight:700;color:var(--text);padding:13px 14px;direction:ltr;letter-spacing:2px;text-align:center;}
+.pw-field-wrap input{
+  flex:1;background:none;border:none;outline:none;
+  font-family:'Alexandria',sans-serif;font-size:.88rem;
+  font-weight:700;color:var(--text);padding:13px 14px;
+  direction:ltr;letter-spacing:2px;text-align:center;
+}
 .pw-field-wrap .ico{width:40px;text-align:center;color:var(--text3);font-size:.75rem;flex-shrink:0;}
-.btn-auth{width:100%;padding:13px;border:none;border-radius:var(--r-sm);background:var(--red);color:#fff;font-family:'Alexandria',sans-serif;font-size:.85rem;font-weight:800;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(230,0,0,.25);}
+.btn-auth{
+  width:100%;padding:13px;border:none;border-radius:var(--r-sm);
+  background:var(--red);color:#fff;
+  font-family:'Alexandria',sans-serif;font-size:.85rem;font-weight:800;
+  cursor:pointer;transition:all .2s;
+  box-shadow:0 4px 16px rgba(230,0,0,.25);
+}
 .btn-auth:hover{background:var(--red3);}
 .btn-auth:active{transform:scale(.97);}
-.auth-err{font-size:.65rem;font-weight:700;color:#ff5555;text-align:center;margin-bottom:10px;opacity:0;transition:opacity .2s;}
+.auth-err{
+  font-size:.65rem;font-weight:700;color:#ff5555;
+  text-align:center;margin-bottom:10px;
+  opacity:0;transition:opacity .2s;
+}
 .auth-err.show{opacity:1;}
-.admin-content{padding:16px 18px 40px;display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1;}
+
+/* Admin content */
+.admin-content{
+  padding:16px 18px 40px;
+  display:none;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  flex:1;
+}
 .admin-content.visible{display:flex;flex-direction:column;}
+
 .admin-field{margin-bottom:14px;}
-.admin-label{font-size:.54rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:7px;display:block;}
-.admin-textarea{width:100%;background:var(--dark3);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:12px 14px;resize:none;font-family:'Alexandria',sans-serif;font-size:.82rem;font-weight:700;color:var(--text);direction:rtl;outline:none;line-height:1.6;transition:border-color .25s;}
+.admin-label{
+  font-size:.54rem;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--text3);margin-bottom:7px;display:block;
+}
+.admin-textarea{
+  width:100%;background:var(--dark3);border:1.5px solid var(--border);
+  border-radius:var(--r-sm);padding:12px 14px;resize:none;
+  font-family:'Alexandria',sans-serif;font-size:.82rem;font-weight:700;
+  color:var(--text);direction:rtl;outline:none;line-height:1.6;
+  transition:border-color .25s;
+}
 .admin-textarea:focus{border-color:var(--border-red);}
 .admin-textarea::placeholder{color:var(--text3);}
+
 .admin-type-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:14px;}
-.type-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:10px 6px;border-radius:var(--r-sm);background:var(--dark3);border:1.5px solid var(--border);cursor:pointer;transition:all .2s;font-family:'Alexandria',sans-serif;font-size:.56rem;font-weight:700;color:var(--text3);}
+.type-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  padding:10px 6px;border-radius:var(--r-sm);
+  background:var(--dark3);border:1.5px solid var(--border);
+  cursor:pointer;transition:all .2s;
+  font-family:'Alexandria',sans-serif;font-size:.56rem;font-weight:700;color:var(--text3);
+}
 .type-btn i{font-size:.85rem;}
 .type-btn.active-info{background:rgba(79,195,247,.07);border-color:rgba(79,195,247,.3);color:#80ccee;}
 .type-btn.active-ok{background:rgba(0,200,90,.07);border-color:rgba(0,200,90,.3);color:var(--green);}
 .type-btn.active-err{background:rgba(230,0,0,.07);border-color:rgba(230,0,0,.3);color:#ff8888;}
-.admin-title-field{width:100%;background:var(--dark3);border:1.5px solid var(--border);border-radius:var(--r-sm);padding:11px 14px;font-family:'Alexandria',sans-serif;font-size:.82rem;font-weight:700;color:var(--text);direction:rtl;outline:none;transition:border-color .25s;}
+
+.admin-title-field{
+  width:100%;background:var(--dark3);border:1.5px solid var(--border);
+  border-radius:var(--r-sm);padding:11px 14px;
+  font-family:'Alexandria',sans-serif;font-size:.82rem;font-weight:700;
+  color:var(--text);direction:rtl;outline:none;
+  transition:border-color .25s;
+}
 .admin-title-field:focus{border-color:var(--border-red);}
 .admin-title-field::placeholder{color:var(--text3);}
+
 .admin-dur-grid{display:flex;gap:6px;flex-wrap:wrap;}
-.dur-btn{flex:1;min-width:42px;padding:8px 4px;text-align:center;background:var(--dark3);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Alexandria',sans-serif;font-size:.62rem;font-weight:700;color:var(--text3);transition:all .2s;}
+.dur-btn{
+  flex:1;min-width:42px;padding:8px 4px;text-align:center;
+  background:var(--dark3);border:1.5px solid var(--border);
+  border-radius:8px;cursor:pointer;
+  font-family:'Alexandria',sans-serif;font-size:.62rem;font-weight:700;color:var(--text3);
+  transition:all .2s;
+}
 .dur-btn:hover{border-color:rgba(230,0,0,.3);color:var(--text);}
 .dur-btn.active{background:rgba(230,0,0,.08);border-color:rgba(230,0,0,.35);color:var(--red);}
-input[type="datetime-local"]{color-scheme:dark;}
-.admin-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
-.admin-tab{flex:1;padding:10px 6px;text-align:center;font-family:'Alexandria',sans-serif;font-size:.58rem;font-weight:700;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;}
+
+/* Admin Tabs */
+.admin-tabs{
+  display:flex;border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.admin-tab{
+  flex:1;padding:10px 6px;text-align:center;
+  font-family:'Alexandria',sans-serif;font-size:.58rem;font-weight:700;
+  color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;
+  transition:all .2s;
+}
 .admin-tab.active{color:var(--red);border-bottom-color:var(--red);}
+
+/* History list */
 .hist-list{display:flex;flex-direction:column;gap:8px;}
-.hist-item{background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;position:relative;overflow:hidden;}
+.hist-item{
+  background:var(--dark3);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:8px;
+  position:relative;overflow:hidden;
+}
 .hist-item::before{content:'';position:absolute;top:0;right:0;bottom:0;width:3px;}
 .hist-item.type-info::before{background:var(--red);}
 .hist-item.type-ok::before{background:var(--green);}
 .hist-item.type-err::before{background:#ff5555;}
 .hist-item-body{flex:1;min-width:0;}
 .hist-item-title{font-size:.65rem;font-weight:800;color:var(--text);margin-bottom:2px;}
-.hist-item-text{font-size:.58rem;color:var(--text2);line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hist-item-text{font-size:.58rem;color:var(--text2);line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .hist-item-meta{display:flex;align-items:center;gap:6px;margin-top:5px;}
-.hist-meta-chip{display:inline-flex;align-items:center;gap:3px;font-size:.5rem;font-weight:700;padding:2px 7px;border-radius:100px;}
+.hist-meta-chip{
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:.5rem;font-weight:700;
+  padding:2px 7px;border-radius:100px;
+}
 .hist-meta-time{background:rgba(255,255,255,.05);color:var(--text3);}
 .hist-meta-views{background:rgba(232,199,111,.07);color:var(--gold);}
-.hist-resend{width:28px;height:28px;border-radius:8px;flex-shrink:0;background:rgba(230,0,0,.07);border:1px solid rgba(230,0,0,.15);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--red);font-size:.6rem;transition:all .2s;}
+.hist-resend{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  background:rgba(230,0,0,.07);border:1px solid rgba(230,0,0,.15);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--red);font-size:.6rem;transition:all .2s;
+}
 .hist-resend:hover{background:rgba(230,0,0,.15);}
 .hist-empty{text-align:center;padding:24px;color:var(--text3);font-size:.65rem;}
+
+/* Schedule items */
 .sched-list{display:flex;flex-direction:column;gap:8px;}
-.sched-item{background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;position:relative;overflow:hidden;}
-.sched-item.done-item{opacity:.45;}
+.sched-item{
+  background:var(--dark3);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;
+  display:flex;align-items:flex-start;justify-content:space-between;gap:8px;
+  position:relative;overflow:hidden;
+}
+.sched-item.done-item{ opacity:.45; }
 .sched-item::before{content:'';position:absolute;top:0;right:0;bottom:0;width:3px;}
 .sched-item.type-info::before{background:var(--red);}
 .sched-item.type-ok::before{background:var(--green);}
@@ -679,28 +925,83 @@ input[type="datetime-local"]{color-scheme:dark;}
 .sched-item-body{flex:1;min-width:0;}
 .sched-item-title{font-size:.65rem;font-weight:800;color:var(--text);margin-bottom:2px;}
 .sched-item-text{font-size:.58rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.sched-item-time{display:inline-flex;align-items:center;gap:4px;font-size:.5rem;font-weight:700;margin-top:5px;padding:2px 8px;border-radius:100px;background:rgba(232,199,111,.07);color:var(--gold);}
+.sched-item-time{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:.5rem;font-weight:700;margin-top:5px;
+  padding:2px 8px;border-radius:100px;
+  background:rgba(232,199,111,.07);color:var(--gold);
+}
 .sched-item-time.done-badge{background:rgba(0,200,90,.07);color:var(--green);}
-.sched-del{width:26px;height:26px;border-radius:7px;flex-shrink:0;background:rgba(255,85,85,.07);border:1px solid rgba(255,85,85,.15);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#ff5555;font-size:.58rem;transition:all .2s;}
+.sched-del{
+  width:26px;height:26px;border-radius:7px;flex-shrink:0;
+  background:rgba(255,85,85,.07);border:1px solid rgba(255,85,85,.15);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:#ff5555;font-size:.58rem;transition:all .2s;
+}
 .sched-del:hover{background:rgba(255,85,85,.18);}
+
+/* datetime-local dark style */
+input[type="datetime-local"]{
+  color-scheme:dark;
+}
+
 .admin-btns{display:flex;gap:8px;margin-top:4px;}
-.btn-send-notif{flex:1;padding:13px;border:none;border-radius:var(--r-sm);background:var(--red);color:#fff;font-family:'Alexandria',sans-serif;font-size:.78rem;font-weight:800;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 4px 16px rgba(230,0,0,.25);}
+.btn-send-notif{
+  flex:1;padding:13px;border:none;border-radius:var(--r-sm);
+  background:var(--red);color:#fff;
+  font-family:'Alexandria',sans-serif;font-size:.78rem;font-weight:800;
+  cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;
+  box-shadow:0 4px 16px rgba(230,0,0,.25);
+}
 .btn-send-notif:hover{background:var(--red3);transform:translateY(-1px);}
 .btn-send-notif:active{transform:scale(.95);}
-.btn-clear-notif{padding:13px 16px;border-radius:var(--r-sm);background:var(--dark3);border:1px solid var(--border);color:var(--text3);cursor:pointer;transition:all .2s;font-family:'Alexandria',sans-serif;font-size:.7rem;font-weight:700;}
+.btn-clear-notif{
+  padding:13px 16px;border-radius:var(--r-sm);
+  background:var(--dark3);border:1px solid var(--border);
+  color:var(--text3);cursor:pointer;transition:all .2s;
+  font-family:'Alexandria',sans-serif;font-size:.7rem;font-weight:700;
+}
 .btn-clear-notif:hover{border-color:var(--border-red);color:var(--red);}
-.admin-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
-.adm-stat{background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center;}
+
+.admin-stats{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;
+  margin-top:14px;padding-top:14px;border-top:1px solid var(--border);
+}
+.adm-stat{
+  background:var(--dark3);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;text-align:center;
+}
 .adm-stat-val{font-size:1.1rem;font-weight:900;color:var(--red);}
 .adm-stat-lbl{font-size:.5rem;color:var(--text3);margin-top:3px;letter-spacing:.5px;}
-.admin-sep{font-size:.5rem;font-weight:700;letter-spacing:2px;color:var(--text3);display:flex;align-items:center;gap:8px;text-transform:uppercase;margin:14px 0;}
+
+.admin-sep{
+  font-size:.5rem;font-weight:700;letter-spacing:2px;
+  color:var(--text3);display:flex;align-items:center;gap:8px;
+  text-transform:uppercase;margin:14px 0;
+}
 .admin-sep::before,.admin-sep::after{content:'';flex:1;height:1px;background:var(--border);}
-.notif-preview{background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:11px 13px;display:flex;align-items:flex-start;gap:9px;border-right:3px solid var(--red);transition:border-color .2s;}
+
+.notif-preview{
+  background:var(--dark3);border:1px solid var(--border);
+  border-radius:10px;padding:11px 13px;
+  display:flex;align-items:flex-start;gap:9px;
+  border-right:3px solid var(--red);
+  transition:border-color .2s;
+}
 .notif-preview.type-ok{border-right-color:var(--green);}
 .notif-preview.type-err{border-right-color:#ff5555;}
-.notif-preview .prev-icon{width:28px;height:28px;border-radius:7px;background:rgba(230,0,0,.1);display:flex;align-items:center;justify-content:center;color:var(--red);font-size:.7rem;flex-shrink:0;transition:all .2s;}
+.notif-preview .prev-icon{
+  width:28px;height:28px;border-radius:7px;
+  background:rgba(230,0,0,.1);display:flex;align-items:center;justify-content:center;
+  color:var(--red);font-size:.7rem;flex-shrink:0;transition:all .2s;
+}
 .notif-preview.type-ok .prev-icon{background:rgba(0,200,90,.1);color:var(--green);}
 .notif-preview.type-err .prev-icon{background:rgba(255,85,85,.1);color:#ff5555;}
+.notif-preview .prev-body{}
+.notif-preview .prev-title{font-size:.65rem;font-weight:800;color:var(--text);margin-bottom:2px;}
+.notif-preview .prev-app{font-size:.48rem;color:var(--text3);margin-bottom:4px;}
+.notif-preview .prev-text{font-size:.6rem;color:var(--text2);line-height:1.4;}
+
 ::-webkit-scrollbar{width:3px;}
 ::-webkit-scrollbar-track{background:var(--dark);}
 ::-webkit-scrollbar-thumb{background:rgba(230,0,0,.3);border-radius:3px;}
@@ -734,7 +1035,7 @@ input[type="datetime-local"]{color-scheme:dark;}
       <polygon points="202,26 203.4,30.5 208,30.5 204.3,33.2 205.7,37.7 202,35 198.3,37.7 199.7,33.2 196,30.5 200.6,30.5"
         fill="rgba(255,240,150,.6)"/>
     </svg>
-    <img src="https://tlashane.serv00.net/vo/vodafone2.png" class="vf-logo" alt=""/>
+    <img src="https://i.postimg.cc/PqxnBbpw/vodafone2.png" class="vf-logo" alt=""/>
   </div>
   <div class="sp-title">كروت رمضان</div>
   <div class="sp-sub">عروض الشهر الكريم &nbsp;•&nbsp; اشحن واستمتع</div>
@@ -746,7 +1047,7 @@ input[type="datetime-local"]{color-scheme:dark;}
   <div class="login-wrap">
     <div class="login-head">
       <div class="login-icon">
-        <img src="https://tlashane.serv00.net/vo/vodafone2.png" alt=""/>
+        <img src="https://i.postimg.cc/PqxnBbpw/vodafone2.png" alt=""/>
       </div>
       <div class="login-title">TALASHNY</div>
       <div class="login-sub">سجّل دخولك بحساب فودافون</div>
@@ -760,14 +1061,16 @@ input[type="datetime-local"]{color-scheme:dark;}
       <div class="field">
         <label>رقم الموبايل</label>
         <div class="input-box">
-          <input type="tel" id="inpNum" placeholder="01XXXXXXXXX" inputmode="tel" autocomplete="tel" required/>
+          <input type="tel" id="inpNum" placeholder="01XXXXXXXXX"
+            inputmode="tel" autocomplete="tel" required/>
           <span class="ico"><i class="fas fa-mobile-screen-button"></i></span>
         </div>
       </div>
       <div class="field">
         <label>كلمة المرور</label>
         <div class="input-box">
-          <input type="password" id="inpPw" placeholder="••••••••" autocomplete="current-password" required/>
+          <input type="password" id="inpPw" placeholder="••••••••"
+            autocomplete="current-password" required/>
           <span class="ico"><i class="fas fa-lock"></i></span>
         </div>
       </div>
@@ -786,13 +1089,14 @@ input[type="datetime-local"]{color-scheme:dark;}
   <div class="topbar">
     <div class="tbar-brand">
       <div class="tbar-logo">
-        <img src="https://tlashane.serv00.net/vo/vodafone2.png" alt=""/>
+        <img src="https://i.postimg.cc/PqxnBbpw/vodafone2.png" alt=""/>
       </div>
       <div class="tbar-name">TALASHNY</div>
     </div>
     <div class="tbar-right">
       <div class="tbar-num" id="topNum">—</div>
       <div class="tbar-live">
+        <!-- النقطة الخضرا — اضغطها 5 مرات للأدمن -->
         <div class="live-dot" id="liveDotBtn" onclick="handleLiveTap()"></div>
         متصل
       </div>
@@ -865,7 +1169,9 @@ input[type="datetime-local"]{color-scheme:dark;}
 <!-- ══ SLIDE NOTIFICATION ══ -->
 <div class="notif-slide" id="notifSlide" onclick="notifClick()">
   <div class="notif-top-row">
-    <div class="notif-slide-icon" id="notifIcon"><i class="fas fa-bell"></i></div>
+    <div class="notif-slide-icon" id="notifIcon">
+      <i class="fas fa-bell"></i>
+    </div>
     <div class="notif-slide-body">
       <div class="notif-slide-title">
         <span id="notifTitle">TALASHNY</span>
@@ -885,6 +1191,8 @@ input[type="datetime-local"]{color-scheme:dark;}
 <div class="admin-overlay" id="adminOverlay">
   <div class="admin-panel">
     <div class="admin-drag-bar"></div>
+
+    <!-- Head -->
     <div class="admin-head">
       <div class="admin-head-left">
         <div class="admin-head-icon"><i class="fas fa-tower-broadcast"></i></div>
@@ -895,11 +1203,17 @@ input[type="datetime-local"]{color-scheme:dark;}
       </div>
       <div class="admin-close" onclick="closeAdmin()"><i class="fas fa-xmark"></i></div>
     </div>
+
+    <!-- Auth -->
     <div class="admin-auth" id="adminAuth">
       <div class="admin-auth-title">أدخل كلمة المرور</div>
       <div class="pin-dots" id="pinDots">
-        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
-        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
       </div>
       <div class="auth-err" id="authErr">❌ كلمة المرور غلط</div>
       <div class="pw-field-wrap">
@@ -910,104 +1224,175 @@ input[type="datetime-local"]{color-scheme:dark;}
         <i class="fas fa-unlock-keyhole"></i>&nbsp; دخول
       </button>
     </div>
+
+    <!-- Content -->
     <div class="admin-content" id="adminContent">
+
+      <!-- Tabs -->
       <div class="admin-tabs">
-        <div class="admin-tab active" id="tab-send" onclick="switchTab('send')"><i class="fas fa-paper-plane"></i>&nbsp; إرسال</div>
-        <div class="admin-tab" id="tab-schedule" onclick="switchTab('schedule')"><i class="fas fa-calendar-clock"></i>&nbsp; جدولة</div>
-        <div class="admin-tab" id="tab-history" onclick="switchTab('history')"><i class="fas fa-clock-rotate-left"></i>&nbsp; السجل</div>
+        <div class="admin-tab active" id="tab-send" onclick="switchTab('send')">
+          <i class="fas fa-paper-plane"></i>&nbsp; إرسال
+        </div>
+        <div class="admin-tab" id="tab-schedule" onclick="switchTab('schedule')">
+          <i class="fas fa-calendar-clock"></i>&nbsp; جدولة
+        </div>
+        <div class="admin-tab" id="tab-history" onclick="switchTab('history')">
+          <i class="fas fa-clock-rotate-left"></i>&nbsp; السجل
+        </div>
       </div>
+
+      <!-- ══ TAB: SEND ══ -->
       <div id="tabSend" style="padding-top:14px">
-        <div class="admin-stats" style="grid-template-columns:1fr 1fr 1fr">
-          <div class="adm-stat"><div class="adm-stat-val" id="adm-online">—</div><div class="adm-stat-lbl">متصل الآن</div></div>
-          <div class="adm-stat"><div class="adm-stat-val" id="adm-today">—</div><div class="adm-stat-lbl">شحنات اليوم</div></div>
-          <div class="adm-stat"><div class="adm-stat-val" id="adm-views" style="color:var(--gold)">—</div><div class="adm-stat-lbl">شافوا الإشعار</div></div>
+
+      <!-- Stats — 3 boxes now -->
+      <div class="admin-stats" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="adm-stat">
+          <div class="adm-stat-val" id="adm-online">—</div>
+          <div class="adm-stat-lbl">متصل الآن</div>
         </div>
-        <div class="admin-sep">إرسال إشعار</div>
-        <div class="admin-type-grid">
-          <div class="type-btn active-info" id="type-info" onclick="setType('info')"><i class="fas fa-circle-info" style="color:#80ccee"></i>معلومة</div>
-          <div class="type-btn" id="type-ok" onclick="setType('ok')"><i class="fas fa-circle-check" style="color:var(--green)"></i>نجاح</div>
-          <div class="type-btn" id="type-err" onclick="setType('err')"><i class="fas fa-circle-exclamation" style="color:#ff8888"></i>تحذير</div>
+        <div class="adm-stat">
+          <div class="adm-stat-val" id="adm-today">—</div>
+          <div class="adm-stat-lbl">شحنات اليوم</div>
         </div>
-        <div class="admin-field">
-          <label class="admin-label">عنوان الإشعار</label>
-          <input type="text" class="admin-title-field" id="notifTitleInput" placeholder="مثال: تنبيه مهم..." value="TALASHNY" oninput="updatePreview()"/>
-        </div>
-        <div class="admin-field">
-          <label class="admin-label">نص الرسالة</label>
-          <textarea class="admin-textarea" id="notifMsgInput" rows="3" placeholder="اكتب رسالتك هنا..." oninput="updatePreview()"></textarea>
-        </div>
-        <div class="admin-field">
-          <label class="admin-label"><i class="fas fa-image" style="margin-left:4px"></i>رابط الأيقونة (اختياري)</label>
-          <div class="input-box" style="background:var(--dark3)">
-            <input type="url" id="notifIconInput" placeholder="https://..." style="font-size:.72rem;direction:ltr" oninput="updatePreview()"/>
-            <span class="ico"><i class="fas fa-link"></i></span>
-          </div>
-        </div>
-        <div class="admin-field">
-          <label class="admin-label"><i class="fas fa-arrow-up-right-from-square" style="margin-left:4px"></i>رابط الزرار (اختياري)</label>
-          <div class="input-box" style="background:var(--dark3);margin-bottom:7px">
-            <input type="url" id="notifLinkInput" placeholder="https://..." style="font-size:.72rem;direction:ltr" oninput="updatePreview()"/>
-            <span class="ico"><i class="fas fa-link"></i></span>
-          </div>
-          <div class="input-box" style="background:var(--dark3)">
-            <input type="text" id="notifBtnInput" placeholder="نص الزرار... مثلاً: افتح العرض" style="font-size:.72rem" oninput="updatePreview()"/>
-            <span class="ico"><i class="fas fa-i-cursor"></i></span>
-          </div>
-        </div>
-        <div class="admin-sep">معاينة</div>
-        <div class="notif-preview" id="notifPreview">
-          <div class="prev-icon" id="prevIconWrap"><i class="fas fa-bell"></i></div>
-          <div class="prev-body" style="flex:1">
-            <div style="font-size:.48rem;color:var(--text3);margin-bottom:2px">TALASHNY • الآن</div>
-            <div class="prev-title" id="prevTitle">TALASHNY</div>
-            <div style="font-size:.6rem;color:var(--text2);line-height:1.4" id="prevText">نص الرسالة هيظهر هنا...</div>
-            <div id="prevBtn" style="display:none;margin-top:7px">
-              <span style="display:inline-flex;align-items:center;gap:4px;font-size:.55rem;font-weight:800;color:var(--red);background:rgba(230,0,0,.08);border:1px solid rgba(230,0,0,.2);padding:4px 10px;border-radius:6px">
-                <i class="fas fa-arrow-up-right-from-square"></i><span id="prevBtnLabel">افتح الرابط</span>
-              </span>
-            </div>
-          </div>
-        </div>
-        <div class="admin-field" style="margin-top:14px">
-          <label class="admin-label">مدة ظهور الإشعار</label>
-          <div class="admin-dur-grid" id="durGrid">
-            <div class="dur-btn active" onclick="setDur(this,60)">1 د</div>
-            <div class="dur-btn" onclick="setDur(this,300)">5 د</div>
-            <div class="dur-btn" onclick="setDur(this,600)">10 د</div>
-            <div class="dur-btn" onclick="setDur(this,1800)">30 د</div>
-            <div class="dur-btn" onclick="setDur(this,3600)">ساعة</div>
-          </div>
-        </div>
-        <div class="admin-btns" style="margin-top:10px">
-          <button class="btn-send-notif" onclick="sendNotif()"><i class="fas fa-paper-plane"></i>&nbsp;إرسال للكل</button>
-          <button class="btn-clear-notif" onclick="clearNotif()"><i class="fas fa-trash"></i></button>
+        <div class="adm-stat" style="border-top-color:var(--gold)" >
+          <div class="adm-stat-val" id="adm-views" style="color:var(--gold)">—</div>
+          <div class="adm-stat-lbl">شافوا الإشعار</div>
         </div>
       </div>
+
+      <div class="admin-sep">إرسال إشعار</div>
+
+      <!-- Type selector -->
+      <div class="admin-type-grid">
+        <div class="type-btn active-info" id="type-info" onclick="setType('info')">
+          <i class="fas fa-circle-info" style="color:#80ccee"></i>معلومة
+        </div>
+        <div class="type-btn" id="type-ok" onclick="setType('ok')">
+          <i class="fas fa-circle-check" style="color:var(--green)"></i>نجاح
+        </div>
+        <div class="type-btn" id="type-err" onclick="setType('err')">
+          <i class="fas fa-circle-exclamation" style="color:#ff8888"></i>تحذير
+        </div>
+      </div>
+
+      <!-- Title -->
+      <div class="admin-field">
+        <label class="admin-label">عنوان الإشعار</label>
+        <input type="text" class="admin-title-field" id="notifTitleInput"
+          placeholder="مثال: تنبيه مهم..." value="TALASHNY" oninput="updatePreview()"/>
+      </div>
+
+      <!-- Message -->
+      <div class="admin-field">
+        <label class="admin-label">نص الرسالة</label>
+        <textarea class="admin-textarea" id="notifMsgInput" rows="3"
+          placeholder="اكتب رسالتك هنا..." oninput="updatePreview()"></textarea>
+      </div>
+
+      <!-- Icon URL -->
+      <div class="admin-field">
+        <label class="admin-label"><i class="fas fa-image" style="margin-left:4px"></i>رابط الأيقونة (اختياري)</label>
+        <div class="input-box" style="background:var(--dark3)">
+          <input type="url" id="notifIconInput" placeholder="https://..." style="font-size:.72rem;direction:ltr" oninput="updatePreview()"/>
+          <span class="ico"><i class="fas fa-link"></i></span>
+        </div>
+      </div>
+
+      <!-- Link URL + button label -->
+      <div class="admin-field">
+        <label class="admin-label"><i class="fas fa-arrow-up-right-from-square" style="margin-left:4px"></i>رابط الزرار (اختياري)</label>
+        <div class="input-box" style="background:var(--dark3);margin-bottom:7px">
+          <input type="url" id="notifLinkInput" placeholder="https://..." style="font-size:.72rem;direction:ltr" oninput="updatePreview()"/>
+          <span class="ico"><i class="fas fa-link"></i></span>
+        </div>
+        <div class="input-box" style="background:var(--dark3)">
+          <input type="text" id="notifBtnInput" placeholder="نص الزرار... مثلاً: افتح العرض" style="font-size:.72rem" oninput="updatePreview()"/>
+          <span class="ico"><i class="fas fa-i-cursor"></i></span>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="admin-sep">معاينة</div>
+      <div class="notif-preview" id="notifPreview">
+        <div class="prev-icon" id="prevIconWrap"><i class="fas fa-bell"></i></div>
+        <div class="prev-body" style="flex:1">
+          <div class="prev-app">TALASHNY • الآن</div>
+          <div class="prev-title" id="prevTitle">TALASHNY</div>
+          <div class="prev-text" id="prevText">نص الرسالة هيظهر هنا...</div>
+          <div id="prevBtn" style="display:none;margin-top:7px">
+            <span style="display:inline-flex;align-items:center;gap:4px;font-size:.55rem;font-weight:800;color:var(--red);background:rgba(230,0,0,.08);border:1px solid rgba(230,0,0,.2);padding:4px 10px;border-radius:6px">
+              <i class="fas fa-arrow-up-right-from-square"></i>
+              <span id="prevBtnLabel">افتح الرابط</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Duration -->
+      <div class="admin-field" style="margin-top:14px">
+        <label class="admin-label">مدة ظهور الإشعار</label>
+        <div class="admin-dur-grid" id="durGrid">
+          <div class="dur-btn active" onclick="setDur(this,60)">1 د</div>
+          <div class="dur-btn" onclick="setDur(this,300)">5 د</div>
+          <div class="dur-btn" onclick="setDur(this,600)">10 د</div>
+          <div class="dur-btn" onclick="setDur(this,1800)">30 د</div>
+          <div class="dur-btn" onclick="setDur(this,3600)">ساعة</div>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="admin-btns" style="margin-top:10px">
+        <button class="btn-send-notif" onclick="sendNotif()">
+          <i class="fas fa-paper-plane"></i>&nbsp;إرسال للكل
+        </button>
+        <button class="btn-clear-notif" onclick="clearNotif()">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+
+      </div><!-- /tabSend -->
+
+      <!-- ══ TAB: HISTORY ══ -->
       <div id="tabHistory" style="display:none;padding-top:14px">
         <div class="hist-list" id="histList">
           <div class="hist-empty"><i class="fas fa-inbox" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.3"></i>لا يوجد سجل بعد</div>
         </div>
       </div>
+
+      <!-- ══ TAB: SCHEDULE ══ -->
       <div id="tabSchedule" style="display:none;padding-top:14px">
+
+        <!-- فورم جديد -->
         <div class="sched-form">
           <div class="admin-sep" style="margin-top:0">إشعار جديد مجدول</div>
+
           <div class="admin-type-grid" style="margin-bottom:10px">
-            <div class="type-btn active-info" id="stype-info" onclick="setSchedType('info')"><i class="fas fa-circle-info" style="color:#80ccee"></i>معلومة</div>
-            <div class="type-btn" id="stype-ok" onclick="setSchedType('ok')"><i class="fas fa-circle-check" style="color:var(--green)"></i>نجاح</div>
-            <div class="type-btn" id="stype-err" onclick="setSchedType('err')"><i class="fas fa-circle-exclamation" style="color:#ff8888"></i>تحذير</div>
+            <div class="type-btn active-info" id="stype-info" onclick="setSchedType('info')">
+              <i class="fas fa-circle-info" style="color:#80ccee"></i>معلومة
+            </div>
+            <div class="type-btn" id="stype-ok" onclick="setSchedType('ok')">
+              <i class="fas fa-circle-check" style="color:var(--green)"></i>نجاح
+            </div>
+            <div class="type-btn" id="stype-err" onclick="setSchedType('err')">
+              <i class="fas fa-circle-exclamation" style="color:#ff8888"></i>تحذير
+            </div>
           </div>
+
           <div class="admin-field">
             <label class="admin-label">عنوان الإشعار</label>
             <input type="text" class="admin-title-field" id="schedTitleInput" placeholder="TALASHNY" value="TALASHNY"/>
           </div>
+
           <div class="admin-field">
             <label class="admin-label">نص الرسالة</label>
             <textarea class="admin-textarea" id="schedMsgInput" rows="2" placeholder="اكتب الرسالة..."></textarea>
           </div>
+
           <div class="admin-field">
             <label class="admin-label"><i class="fas fa-calendar-clock" style="margin-left:4px"></i>وقت الإرسال</label>
             <input type="datetime-local" id="schedTimeInput" class="admin-title-field" style="direction:ltr"/>
           </div>
+
           <div class="admin-field">
             <label class="admin-label">رابط الزرار (اختياري)</label>
             <div class="input-box" style="background:var(--dark3)">
@@ -1015,90 +1400,88 @@ input[type="datetime-local"]{color-scheme:dark;}
               <span class="ico"><i class="fas fa-link"></i></span>
             </div>
           </div>
+
           <button class="btn-send-notif" style="width:100%;margin-top:4px" onclick="addSchedule()">
             <i class="fas fa-calendar-plus"></i>&nbsp;جدولة الإشعار
           </button>
         </div>
+
+        <!-- قائمة المجدولة -->
         <div class="admin-sep">المجدولة</div>
         <div class="sched-list" id="schedList">
           <div class="hist-empty"><i class="fas fa-calendar-xmark" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.3"></i>لا توجد إشعارات مجدولة</div>
         </div>
-      </div>
-    </div>
+
+      </div><!-- /tabSchedule -->
+
+    </div><!-- /admin-content -->
   </div>
 </div>
 
+<!-- toast -->
 <div class="toast" id="toastEl"></div>
 
 <script>
 const _=id=>document.getElementById(id);
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function esc(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function showToast(msg,t=''){
   const el=_('toastEl');
   el.textContent=msg; el.className='toast show'+(t?' '+t:'');
   clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2800);
 }
 
-/* ══ SCREEN SWITCHING ══ */
+/* ── SWITCH ── */
 function goTo(newId){
-  document.querySelectorAll('.screen').forEach(s=>{
-    if(s.id===newId){ s.classList.add('active'); }
-    else { s.classList.remove('active'); }
+  const screens = document.querySelectorAll('.screen');
+  screens.forEach(s=>{
+    if(s.id===newId){
+      s.classList.add('active');
+    } else {
+      s.classList.remove('active');
+    }
   });
   if(newId==='s-app') _(newId).scrollTop=0;
 }
 
-/* ══ حماية النسخ ══ */
+/* ── حماية النسخ والسياق ── */
 document.addEventListener('contextmenu', e=>e.preventDefault());
 document.addEventListener('copy',   e=>e.preventDefault());
 document.addEventListener('cut',    e=>e.preventDefault());
 document.addEventListener('dragstart', e=>e.preventDefault());
+// حماية long-press على موبايل
+document.addEventListener('touchstart', e=>{
+  if(e.target.tagName!=='INPUT' && e.target.tagName!=='TEXTAREA' && e.target.tagName!=='A'){
+    e.target._lpTimer = setTimeout(()=>e.preventDefault(), 500);
+  }
+},{passive:true});
+document.addEventListener('touchend', e=>{
+  clearTimeout(e.target._lpTimer);
+},{passive:true});
 
 let timerInt=null, pingInt=null;
 function startPing(){ fetch('/ping'); clearInterval(pingInt); pingInt=setInterval(()=>fetch('/ping'),15000); }
 function stopPing(){ clearInterval(pingInt); }
 
-/* ══════════════════════════════════════════════
-   BOOT — إصلاح: السبلاش تظهر دايماً أول حاجة
-   بعدين بنتحقق من الجلسة في الخلفية
-══════════════════════════════════════════════ */
+/* ── BOOT ── */
 (async()=>{
-  // السبلاش شغالة بـ .active من الأصل، مش محتاجين نحطها
-
-  // بنجيب حالة الجلسة من السيرفر في الخلفية
-  let logged = false;
-  let userNum = '';
   try{
-    const r=await fetch('/check');
-    const d=await r.json();
-    if(d.logged){ logged=true; userNum=d.number; }
+    const r=await fetch('/check'); const d=await r.json();
+    if(d.logged){
+      _('s-splash').classList.remove('active');
+      _('topNum').textContent=d.number;
+      goTo('s-app'); startPing(); startCycle(); return;
+    }
   }catch{}
-
-  if(logged){
-    // المستخدم متسجل — نخلي السبلاش تعمل شغلتها وبعدين نروح للتطبيق
-    _('topNum').textContent = userNum;
-    setTimeout(()=>{
-      const sp = _('s-splash');
-      sp.style.transition='opacity .8s ease';
-      sp.style.opacity='0';
-      setTimeout(()=>{
-        goTo('s-app');
-        startPing();
-        startCycle();
-      }, 800);
-    }, 5600); // ← نفس وقت السبلاش الكامل
-  } else {
-    // مش متسجل — نودي للتسجيل بعد السبلاش
-    setTimeout(()=>{
-      const sp = _('s-splash');
-      sp.style.transition='opacity .8s ease';
-      sp.style.opacity='0';
-      setTimeout(()=>goTo('s-login'), 800);
-    }, 5600);
-  }
+  setTimeout(()=>{
+    const sp=_('s-splash');
+    sp.style.transition='opacity .8s ease'; sp.style.opacity='0';
+    setTimeout(()=>{ sp.classList.remove('active'); goTo('s-login'); }, 800);
+  }, 5400);
 })();
 
-/* ══ LOGIN ══ */
+/* ── LOGIN ── */
 async function doLogin(){
   const num=_('inpNum').value.trim(), pw=_('inpPw').value.trim();
   if(!num||!pw) return;
@@ -1110,43 +1493,23 @@ async function doLogin(){
     const r=await fetch('/login',{method:'POST',body:fd}); const d=await r.json();
     if(d.ok){
       _('topNum').textContent=d.number;
+      // vibrate خفيف لو متاح
       navigator.vibrate && navigator.vibrate(30);
       goTo('s-app'); startPing(); startCycle();
-    } else {
-      _('errMsg').textContent=d.error||'الرقم أو الباسورد غلط';
-      _('errBox').style.display='flex';
     }
-  }catch{
-    _('errMsg').textContent='خطأ في الاتصال — تحقق من النت';
-    _('errBox').style.display='flex';
-  }
+    else{ _('errMsg').textContent=d.error||'الرقم أو الباسورد غلط'; _('errBox').style.display='flex'; }
+  }catch{ _('errMsg').textContent='خطأ في الاتصال — تحقق من النت'; _('errBox').style.display='flex'; }
   btn.disabled=false; btn.innerHTML='<i class="fas fa-right-to-bracket"></i>&nbsp; دخول';
 }
 _('inpPw')?.addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
 _('inpNum')?.addEventListener('keydown',e=>{ if(e.key==='Enter') _('inpPw').focus(); });
 
-/* ══ LOGOUT — إصلاح: مسح الجلسة صح ══ */
-_('logoutBtn').onclick = async()=>{
-  clearInterval(timerInt);
-  stopPing();
-  try{
-    // ← إصلاح: نبعت POST مع credentials عشان السيرفر يمسح الكوكيز
-    await fetch('/logout', {
-      method: 'POST',
-      credentials: 'same-origin'
-    });
-  }catch{}
-  // امسح أي بيانات محلية
-  lastBroadcastId = '';
-  // روح لشاشة اللوجين
-  goTo('s-login');
-  // كلير الفيلدز
-  _('inpNum').value='';
-  _('inpPw').value='';
-  _('errBox').style.display='none';
+/* ── LOGOUT ── */
+_('logoutBtn').onclick=async()=>{
+  await fetch('/logout'); clearInterval(timerInt); stopPing(); goTo('s-login');
 };
 
-/* ══ COPY ══ */
+/* ── COPY ── */
 function copySerial(btn){
   const s=btn.closest('.card-serial').querySelector('.serial-val').textContent.trim();
   const ok=()=>{
@@ -1162,7 +1525,7 @@ function copySerial(btn){
   }
 }
 
-/* ══ CHARGE ══ */
+/* ── CHARGE ── */
 async function chargeCard(serial,amount,btn){
   btn.classList.add('loading'); btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>&nbsp;<span>جاري...</span>';
   try{
@@ -1173,69 +1536,136 @@ async function chargeCard(serial,amount,btn){
   }catch{ showToast('❌ خطأ في الاتصال','err'); btn.classList.remove('loading'); btn.innerHTML='<i class="fas fa-bolt"></i>&nbsp;<span>شحن أونلاين</span>'; }
 }
 
-/* ══ SLIDE NOTIFICATION ══ */
+/* ══════════════════════════════════════════════
+   SLIDE NOTIFICATION
+══════════════════════════════════════════════ */
 let notifTimer=null, currentNotifLink='';
-function notifClick(){ if(currentNotifLink) window.open(currentNotifLink,'_blank'); }
-function showNotif(title, text, type='info', duration=5000, iconUrl='', linkUrl='', btnLabel=''){
-  const el=_('notifSlide'), icon=_('notifIcon'), fill=_('notifBarFill');
-  const icons={info:'fa-bell',ok:'fa-circle-check',err:'fa-circle-exclamation'};
-  const colors={info:'var(--red)',ok:'var(--green)',err:'#ff5555'};
-  const color=colors[type]||'var(--red)';
-  _('notifTitle').textContent=title;
-  _('notifText').textContent=text;
-  if(iconUrl){ icon.innerHTML=`<img src="${iconUrl}" onerror="this.parentElement.innerHTML='<i class=\\'fas fa-bell\\'></i>'">`; }
-  else{ icon.innerHTML=`<i class="fas ${icons[type]||'fa-bell'}"></i>`; icon.style.color=color; }
-  el.style.borderRightColor=color; fill.style.background=color;
-  currentNotifLink=linkUrl;
-  const actionBtn=_('notifActionBtn');
-  if(linkUrl){
-    actionBtn.href=linkUrl; _('notifBtnLabel').textContent=btnLabel||'افتح الرابط';
-    actionBtn.style.display='flex'; actionBtn.style.borderColor=color; actionBtn.style.color=color;
-    el.classList.add('has-link');
-  } else { actionBtn.style.display='none'; el.classList.remove('has-link'); }
-  fill.style.transition='none'; fill.style.transform='scaleX(1)'; fill.style.transformOrigin='right';
-  el.classList.add('show');
-  clearTimeout(notifTimer);
-  requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ fill.style.transition=`transform ${duration}ms linear`; fill.style.transform='scaleX(0)'; }); });
-  notifTimer=setTimeout(()=>el.classList.remove('show'),duration);
+
+function notifClick(){
+  if(currentNotifLink){
+    window.open(currentNotifLink,'_blank');
+  }
 }
 
-/* ══ LIVE DOT — 5 TAPS ══ */
+function showNotif(title, text, type='info', duration=5000, iconUrl='', linkUrl='', btnLabel=''){
+  const el    = _('notifSlide');
+  const icon  = _('notifIcon');
+  const fill  = _('notifBarFill');
+  const icons = { info:'fa-bell', ok:'fa-circle-check', err:'fa-circle-exclamation' };
+  const colors= { info:'var(--red)', ok:'var(--green)', err:'#ff5555' };
+  const color = colors[type]||'var(--red)';
+
+  _('notifTitle').textContent = title;
+  _('notifText').textContent  = text;
+
+  // أيقونة — صورة أو أيقونة افتراضية
+  if(iconUrl){
+    icon.innerHTML = `<img src="${iconUrl}" onerror="this.parentElement.innerHTML='<i class=\\'fas fa-bell\\'></i>'"/>`;
+  } else {
+    icon.innerHTML = `<i class="fas ${icons[type]||'fa-bell'}"></i>`;
+    icon.style.color = color;
+  }
+  el.style.borderRightColor = color;
+  fill.style.background = color;
+
+  // زرار الرابط
+  currentNotifLink = linkUrl;
+  const actionBtn = _('notifActionBtn');
+  if(linkUrl){
+    actionBtn.href = linkUrl;
+    _('notifBtnLabel').textContent = btnLabel || 'افتح الرابط';
+    actionBtn.style.display = 'flex';
+    actionBtn.style.borderColor = color;
+    actionBtn.style.color = color;
+    actionBtn.style.background = color.replace('var(--red)','rgba(230,0,0,.09)')
+                                       .replace('var(--green)','rgba(0,200,90,.09)')
+                                       .replace('#ff5555','rgba(255,85,85,.09)');
+    el.classList.add('has-link');
+  } else {
+    actionBtn.style.display = 'none';
+    el.classList.remove('has-link');
+  }
+
+  // شريط التقدم
+  fill.style.transition='none';
+  fill.style.transform='scaleX(1)';
+  fill.style.transformOrigin='right';
+
+  el.classList.add('show');
+  clearTimeout(notifTimer);
+
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      fill.style.transition=`transform ${duration}ms linear`;
+      fill.style.transform='scaleX(0)';
+    });
+  });
+
+  notifTimer = setTimeout(()=>el.classList.remove('show'), duration);
+}
+
+/* ══════════════════════════════════════════════
+   LIVE DOT — 5 TAPS → ADMIN
+══════════════════════════════════════════════ */
 let tapCount=0, tapTimer=null;
 function handleLiveTap(){
   tapCount++;
-  const dot=_('liveDotBtn');
-  dot.style.transform='scale(1.8)'; dot.style.boxShadow='0 0 0 6px rgba(0,200,90,.4)';
-  setTimeout(()=>{ dot.style.transform=''; dot.style.boxShadow=''; },200);
+  // فلاشة بصرية على كل ضغطة
+  const dot = _('liveDotBtn');
+  dot.style.transform='scale(1.8)';
+  dot.style.boxShadow='0 0 0 6px rgba(0,200,90,.4)';
+  setTimeout(()=>{ dot.style.transform=''; dot.style.boxShadow=''; }, 200);
+
   clearTimeout(tapTimer);
-  if(tapCount>=5){ tapCount=0; openAdmin(); }
-  else { tapTimer=setTimeout(()=>tapCount=0,2500); }
+  if(tapCount >= 5){
+    tapCount=0;
+    openAdmin();
+  } else {
+    tapTimer = setTimeout(()=>tapCount=0, 2500);
+  }
 }
 
-/* ══ ADMIN ══ */
-const ADMIN_PW='1052003Mm$#@';
-let adminAuthed=false, selectedType='info';
+/* ══════════════════════════════════════════════
+   ADMIN PANEL
+══════════════════════════════════════════════ */
+const ADMIN_PW = '1052003Mm$#@';
+let adminAuthed = false;
+let selectedType = 'info';
+
 function openAdmin(){
   _('adminOverlay').classList.add('open');
+  // reset auth لو مش authed
   if(!adminAuthed){
     _('adminAuth').style.display='';
     _('adminContent').classList.remove('visible');
     _('adminPwInput').value='';
     _('authErr').classList.remove('show');
     updatePinDots(0,'');
-    setTimeout(()=>_('adminPwInput').focus(),350);
-  } else { loadAdminStats(); }
+    setTimeout(()=>_('adminPwInput').focus(), 350);
+  } else {
+    loadAdminStats();
+  }
 }
-function closeAdmin(){ _('adminOverlay').classList.remove('open'); }
-_('adminOverlay').addEventListener('click',function(e){ if(e.target===this) closeAdmin(); });
-function updatePinDots(len,state){
-  const dots=_('pinDots').querySelectorAll('.pin-dot');
-  dots.forEach((d,i)=>{ d.classList.remove('filled','err'); if(i<len) d.classList.add(state||'filled'); });
+function closeAdmin(){
+  _('adminOverlay').classList.remove('open');
 }
+// إغلاق بالضغط على الخلفية
+_('adminOverlay').addEventListener('click',function(e){
+  if(e.target===this) closeAdmin();
+});
+
+function updatePinDots(len, state){
+  const dots = _('pinDots').querySelectorAll('.pin-dot');
+  dots.forEach((d,i)=>{
+    d.classList.remove('filled','err');
+    if(i < len) d.classList.add(state||'filled');
+  });
+}
+
 function checkAdminPw(){
-  const val=_('adminPwInput').value;
+  const val = _('adminPwInput').value;
   updatePinDots(Math.min(val.length,6),'filled');
-  if(val===ADMIN_PW){
+  if(val === ADMIN_PW){
     adminAuthed=true;
     _('adminAuth').style.display='none';
     _('adminContent').classList.add('visible');
@@ -1243,158 +1673,285 @@ function checkAdminPw(){
   } else {
     updatePinDots(6,'err');
     _('authErr').classList.add('show');
-    setTimeout(()=>{ updatePinDots(0,''); _('authErr').classList.remove('show'); _('adminPwInput').value=''; },1200);
+    setTimeout(()=>{
+      updatePinDots(0,'');
+      _('authErr').classList.remove('show');
+      _('adminPwInput').value='';
+    }, 1200);
   }
 }
+
 async function loadAdminStats(){
-  try{ const r=await fetch('/admin-stats'); const d=await r.json(); if(d.ok){ _('adm-online').textContent=d.online; _('adm-today').textContent=d.today; _('adm-views').textContent=d.views??'—'; } }catch{}
+  try{
+    const r=await fetch('/admin-stats'); const d=await r.json();
+    if(d.ok){
+      _('adm-online').textContent = d.online;
+      _('adm-today').textContent  = d.today;
+      _('adm-views').textContent  = d.views ?? '—';
+    }
+  }catch{}
 }
+
 function setType(t){
   selectedType=t;
-  ['info','ok','err'].forEach(x=>{ const b=_('type-'+x); b.className='type-btn'; if(x===t) b.classList.add('active-'+x); });
+  ['info','ok','err'].forEach(x=>{
+    const b=_('type-'+x);
+    b.className='type-btn';
+    if(x===t) b.classList.add('active-'+x);
+  });
   updatePreview();
 }
+
 function updatePreview(){
-  const title=_('notifTitleInput').value||'TALASHNY', text=_('notifMsgInput').value||'نص الرسالة هيظهر هنا...';
-  const iconUrl=_('notifIconInput').value.trim(), linkUrl=_('notifLinkInput').value.trim();
-  const btnLbl=_('notifBtnInput').value.trim()||'افتح الرابط';
-  const icons={info:'fa-bell',ok:'fa-circle-check',err:'fa-circle-exclamation'};
-  _('prevTitle').textContent=title; _('prevText').textContent=text;
-  const pw=_('prevIconWrap');
-  if(iconUrl){ pw.innerHTML=`<img src="${iconUrl}" style="width:28px;height:28px;border-radius:7px;object-fit:cover" onerror="this.outerHTML='<i class=\\'fas fa-bell\\'></i>'">`; }
-  else{ pw.innerHTML=`<i class="fas ${icons[selectedType]||'fa-bell'}"></i>`; }
-  const pb=_('prevBtn');
-  if(linkUrl){ pb.style.display='block'; _('prevBtnLabel').textContent=btnLbl; } else { pb.style.display='none'; }
-  const prev=_('notifPreview'); prev.className='notif-preview';
-  if(selectedType==='ok') prev.classList.add('type-ok');
+  const title   = _('notifTitleInput').value || 'TALASHNY';
+  const text    = _('notifMsgInput').value   || 'نص الرسالة هيظهر هنا...';
+  const iconUrl = _('notifIconInput').value.trim();
+  const linkUrl = _('notifLinkInput').value.trim();
+  const btnLbl  = _('notifBtnInput').value.trim() || 'افتح الرابط';
+  const icons   = { info:'fa-bell', ok:'fa-circle-check', err:'fa-circle-exclamation' };
+
+  _('prevTitle').textContent = title;
+  _('prevText').textContent  = text;
+
+  // أيقونة preview
+  const pw = _('prevIconWrap');
+  if(iconUrl){
+    pw.innerHTML=`<img src="${iconUrl}" style="width:28px;height:28px;border-radius:7px;object-fit:cover" onerror="this.outerHTML='<i class=\\'fas fa-bell\\'></i>'"/>`;
+  } else {
+    pw.innerHTML=`<i class="fas ${icons[selectedType]||'fa-bell'}"></i>`;
+  }
+
+  // زرار preview
+  const pb = _('prevBtn');
+  if(linkUrl){ pb.style.display='block'; _('prevBtnLabel').textContent=btnLbl; }
+  else { pb.style.display='none'; }
+
+  const prev = _('notifPreview');
+  prev.className='notif-preview';
+  if(selectedType==='ok')  prev.classList.add('type-ok');
   if(selectedType==='err') prev.classList.add('type-err');
 }
+
+/* ══ صوت الإشعار ══ */
 function playNotifSound(){
   try{
-    const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    const osc=ctx.createOscillator(), gain=ctx.createGain();
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain= ctx.createGain();
     osc.connect(gain); gain.connect(ctx.destination);
-    osc.type='sine'; osc.frequency.setValueAtTime(880,ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440,ctx.currentTime+0.15);
-    gain.gain.setValueAtTime(0.18,ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);
+    osc.type='sine'; osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime+0.15);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.3);
     osc.start(); osc.stop(ctx.currentTime+0.3);
   }catch{}
 }
+
+/* ══ Admin Tabs ══ */
 function switchTab(tab){
-  ['send','schedule','history'].forEach(t=>{ _('tab-'+t)?.classList.toggle('active',t===tab); });
-  _('tabSend').style.display=tab==='send'?'':'none';
-  _('tabSchedule').style.display=tab==='schedule'?'':'none';
-  _('tabHistory').style.display=tab==='history'?'':'none';
-  if(tab==='history') loadHistory();
+  ['send','schedule','history'].forEach(t=>{
+    _('tab-'+t)?.classList.toggle('active', t===tab);
+  });
+  _('tabSend').style.display     = tab==='send'     ? '' : 'none';
+  _('tabSchedule').style.display = tab==='schedule' ? '' : 'none';
+  _('tabHistory').style.display  = tab==='history'  ? '' : 'none';
+  if(tab==='history')  loadHistory();
   if(tab==='schedule') loadSchedule();
 }
-let selectedSchedType='info';
+
+/* ══ Schedule JS ══ */
+let selectedSchedType = 'info';
+
 function setSchedType(t){
-  selectedSchedType=t;
-  ['info','ok','err'].forEach(x=>{ const b=_('stype-'+x); if(!b) return; b.className='type-btn'; if(x===t) b.classList.add('active-'+x); });
+  selectedSchedType = t;
+  ['info','ok','err'].forEach(x=>{
+    const b=_('stype-'+x);
+    if(!b) return;
+    b.className='type-btn';
+    if(x===t) b.classList.add('active-'+x);
+  });
 }
+
+// اضبط أقل قيمة للوقت = الآن
 function initSchedTime(){
-  const inp=_('schedTimeInput'); if(!inp) return;
-  const now=new Date(); now.setMinutes(now.getMinutes()+5);
-  const iso=now.toISOString().slice(0,16);
-  inp.min=iso; inp.value=iso;
+  const inp = _('schedTimeInput');
+  if(!inp) return;
+  const now = new Date();
+  now.setMinutes(now.getMinutes()+5);
+  const iso = now.toISOString().slice(0,16);
+  inp.min   = iso;
+  inp.value = iso;
 }
+
 async function addSchedule(){
-  const title=_('schedTitleInput').value.trim()||'TALASHNY';
-  const text=_('schedMsgInput').value.trim();
-  const fireVal=_('schedTimeInput').value;
-  const link=_('schedLinkInput').value.trim();
-  if(!text){ showToast('اكتب نص الإشعار','err'); return; }
+  const title   = _('schedTitleInput').value.trim() || 'TALASHNY';
+  const text    = _('schedMsgInput').value.trim();
+  const fireVal = _('schedTimeInput').value;
+  const link    = _('schedLinkInput').value.trim();
+  if(!text)   { showToast('اكتب نص الإشعار','err'); return; }
   if(!fireVal){ showToast('اختار وقت الإرسال','err'); return; }
-  const fireDate=new Date(fireVal), fireTs=Math.floor(fireDate.getTime()/1000), nowTs=Math.floor(Date.now()/1000);
-  if(fireTs<=nowTs){ showToast('الوقت لازم يكون في المستقبل','err'); return; }
-  const fireDisplay=fireDate.toLocaleDateString('ar-EG',{month:'short',day:'numeric'})+' '+fireDate.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
-  const btn=document.querySelector('#tabSchedule .btn-send-notif');
+
+  const fireDate  = new Date(fireVal);
+  const fireTs    = Math.floor(fireDate.getTime() / 1000);
+  const nowTs     = Math.floor(Date.now() / 1000);
+  if(fireTs <= nowTs){ showToast('الوقت لازم يكون في المستقبل','err'); return; }
+
+  const fireDisplay = fireDate.toLocaleDateString('ar-EG',{month:'short',day:'numeric'})
+                    + ' ' + fireDate.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+
+  const btn = document.querySelector('#tabSchedule .btn-send-notif');
   if(btn){ btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>&nbsp;جاري الحفظ...'; }
   try{
-    const fd=new FormData();
-    fd.append('text',text); fd.append('type',selectedSchedType); fd.append('title',title);
-    fd.append('fire_at',fireDisplay); fd.append('fire_at_ts',String(fireTs));
-    fd.append('link',link); fd.append('duration','300');
-    const r=await fetch('/schedule-add',{method:'POST',body:fd}); const d=await r.json();
-    if(d.ok){ showToast('✅ تم الجدولة — '+fireDisplay,'ok'); _('schedMsgInput').value=''; _('schedLinkInput').value=''; loadSchedule(); }
-    else { showToast('❌ '+(d.error||'خطأ'),'err'); }
-  }catch{ showToast('❌ خطأ في الاتصال','err'); }
+    const fd = new FormData();
+    fd.append('text',      text);
+    fd.append('type',      selectedSchedType);
+    fd.append('title',     title);
+    fd.append('fire_at',   fireDisplay);
+    fd.append('fire_at_ts', String(fireTs));
+    fd.append('link',      link);
+    fd.append('duration',  '300');
+    const r = await fetch('/schedule-add',{method:'POST',body:fd});
+    const d = await r.json();
+    if(d.ok){
+      showToast('✅ تم الجدولة — '+fireDisplay,'ok');
+      _('schedMsgInput').value=''; _('schedLinkInput').value='';
+      loadSchedule();
+    } else {
+      showToast('❌ '+(d.error||'خطأ'),'err');
+    }
+  } catch(e){ showToast('❌ خطأ في الاتصال','err'); }
   if(btn){ btn.disabled=false; btn.innerHTML='<i class="fas fa-calendar-plus"></i>&nbsp;جدولة الإشعار'; }
 }
+
 function fmtFireAt(ts){
-  try{ const d=new Date(parseFloat(ts)*1000); return d.toLocaleDateString('ar-EG',{month:'short',day:'numeric'})+' — '+d.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'}); }catch{ return '—'; }
+  try{
+    const d = new Date(parseFloat(ts)*1000);
+    return d.toLocaleDateString('ar-EG',{month:'short',day:'numeric'})
+         + ' — ' + d.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+  }catch{ return '—'; }
 }
+
 async function loadSchedule(){
   initSchedTime();
   try{
     const r=await fetch('/schedule-list'); const d=await r.json();
     const wrap=_('schedList');
-    const serverTs=d.server_time||0, clientTs=Date.now()/1000, diffMin=Math.round((clientTs-serverTs)/60);
-    const diffWarn=Math.abs(diffMin)>5?`<div style="font-size:.52rem;color:var(--gold);background:rgba(232,199,111,.08);border:1px solid rgba(232,199,111,.2);border-radius:8px;padding:6px 10px;margin-bottom:10px"><i class="fas fa-triangle-exclamation"></i>&nbsp;فرق التوقيت: ${diffMin>0?'+':''}${diffMin} دقيقة</div>`:'';
+    // فرق التوقيت بين السيرفر والمتصفح
+    const serverTs   = d.server_time || 0;
+    const clientTs   = Date.now()/1000;
+    const diffMin    = Math.round((clientTs - serverTs)/60);
+    const diffWarn   = Math.abs(diffMin) > 5
+      ? `<div style="font-size:.52rem;color:var(--gold);background:rgba(232,199,111,.08);border:1px solid rgba(232,199,111,.2);border-radius:8px;padding:6px 10px;margin-bottom:10px">
+           <i class="fas fa-triangle-exclamation"></i>&nbsp;فرق التوقيت: ${diffMin > 0 ? '+' : ''}${diffMin} دقيقة — السيرفر قد يكون UTC
+         </div>` : '';
     const items=d.items||[];
-    if(!items.length){ wrap.innerHTML=diffWarn+'<div class="hist-empty"><i class="fas fa-calendar-xmark" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.3"></i>لا توجد إشعارات مجدولة</div>'; return; }
-    wrap.innerHTML=diffWarn+items.map(s=>`<div class="sched-item type-${s.type||'info'}${s.done?' done-item':''}"><div class="sched-item-body"><div class="sched-item-title">${esc(s.title||'TALASHNY')}</div><div class="sched-item-text">${esc(s.text)}</div><div class="sched-item-time ${s.done?'done-badge':''}">${s.done?'<i class="fas fa-check"></i> تم الإرسال':'<i class="fas fa-clock"></i> '+fmtFireAt(s.fire_at_ts)}</div></div>${!s.done?`<div class="sched-del" onclick="deleteSchedule('${esc(s.id)}')"><i class="fas fa-trash"></i></div>`:''}</div>`).join('');
-  }catch{ _('schedList').innerHTML='<div class="hist-empty">خطأ في التحميل</div>'; }
+    if(!items.filter(i=>!i.done).length && !items.length){
+      wrap.innerHTML=diffWarn+'<div class="hist-empty"><i class="fas fa-calendar-xmark" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.3"></i>لا توجد إشعارات مجدولة</div>';
+      return;
+    }
+    wrap.innerHTML=diffWarn+items.map(s=>`
+      <div class="sched-item type-${s.type||'info'}${s.done?' done-item':''}">
+        <div class="sched-item-body">
+          <div class="sched-item-title">${esc(s.title||'TALASHNY')}</div>
+          <div class="sched-item-text">${esc(s.text)}</div>
+          <div class="sched-item-time ${s.done?'done-badge':''}">
+            ${s.done?'<i class="fas fa-check"></i> تم الإرسال':'<i class="fas fa-clock"></i> '+fmtFireAt(s.fire_at_ts)}
+          </div>
+        </div>
+        ${!s.done?`<div class="sched-del" onclick="deleteSchedule('${esc(s.id)}')"><i class="fas fa-trash"></i></div>`:''}
+      </div>
+    `).join('');
+  }catch(e){
+    _('schedList').innerHTML='<div class="hist-empty">خطأ في التحميل</div>';
+  }
 }
+
 async function deleteSchedule(id){
   const fd=new FormData(); fd.append('id',id);
   await fetch('/schedule-delete',{method:'POST',body:fd});
-  showToast('🗑️ تم الحذف','ok'); loadSchedule();
+  showToast('🗑️ تم الحذف','ok');
+  loadSchedule();
 }
+
 async function loadHistory(){
   try{
-    const r=await fetch('/broadcast-history'); const d=await r.json();
-    const wrap=_('histList');
-    if(!d.history?.length){ wrap.innerHTML='<div class="hist-empty"><i class="fas fa-inbox" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.3"></i>لا يوجد سجل بعد</div>'; return; }
+    const r = await fetch('/broadcast-history');
+    const d = await r.json();
+    const wrap = _('histList');
+    if(!d.history?.length){
+      wrap.innerHTML='<div class="hist-empty"><i class="fas fa-inbox" style="display:block;font-size:1.5rem;margin-bottom:8px;opacity:.3"></i>لا يوجد سجل بعد</div>';
+      return;
+    }
     const typeIcon={info:'fa-bell',ok:'fa-circle-check',err:'fa-circle-exclamation'};
-    wrap.innerHTML=d.history.map(h=>`<div class="hist-item type-${h.type||'info'}"><div class="hist-item-body"><div class="hist-item-title">${esc(h.title||'TALASHNY')}</div><div class="hist-item-text">${esc(h.text)}</div><div class="hist-item-meta"><span class="hist-meta-chip hist-meta-time"><i class="fas fa-clock"></i>&nbsp;${esc(h.sent_at||'')}</span><span class="hist-meta-chip hist-meta-views"><i class="fas fa-eye"></i>&nbsp;${h.views||0} مشاهدة</span></div></div><div class="hist-resend" onclick="resendNotif(${JSON.stringify(h).replace(/"/g,'&quot;')})" title="إعادة إرسال"><i class="fas fa-rotate-right"></i></div></div>`).join('');
+    wrap.innerHTML = d.history.map(h=>`
+      <div class="hist-item type-${h.type||'info'}">
+        <div class="hist-item-body">
+          <div class="hist-item-title">${esc(h.title||'TALASHNY')}</div>
+          <div class="hist-item-text">${esc(h.text)}</div>
+          <div class="hist-item-meta">
+            <span class="hist-meta-chip hist-meta-time"><i class="fas fa-clock"></i>&nbsp;${esc(h.sent_at||'')}</span>
+            <span class="hist-meta-chip hist-meta-views"><i class="fas fa-eye"></i>&nbsp;${h.views||0} مشاهدة</span>
+          </div>
+        </div>
+        <div class="hist-resend" onclick="resendNotif(${JSON.stringify(h).replace(/"/g,'&quot;')})" title="إعادة إرسال">
+          <i class="fas fa-rotate-right"></i>
+        </div>
+      </div>
+    `).join('');
   }catch{}
 }
+
 async function resendNotif(h){
-  _('notifTitleInput').value=h.title||'TALASHNY';
-  _('notifMsgInput').value=h.text||'';
-  setType(h.type||'info'); updatePreview();
-  switchTab('send'); showToast('✏️ تم تحميل الإشعار','ok');
+  _('notifTitleInput').value = h.title||'TALASHNY';
+  _('notifMsgInput').value   = h.text||'';
+  setType(h.type||'info');
+  updatePreview();
+  switchTab('send');
+  showToast('✏️ تم تحميل الإشعار — عدّله وابعته','ok');
 }
-let selectedDur=60;
-function setDur(el,sec){
-  selectedDur=sec;
+
+function setDur(el, sec){
+  selectedDur = sec;
   document.querySelectorAll('.dur-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
 }
+
 async function sendNotif(){
-  const title=_('notifTitleInput').value.trim()||'TALASHNY';
-  const text=_('notifMsgInput').value.trim();
+  const title   = _('notifTitleInput').value.trim() || 'TALASHNY';
+  const text    = _('notifMsgInput').value.trim();
   if(!text){ showToast('اكتب رسالة الأول','err'); return; }
-  const iconUrl=_('notifIconInput').value.trim();
-  const linkUrl=_('notifLinkInput').value.trim();
-  const btnLbl=_('notifBtnInput').value.trim()||'افتح الرابط';
-  const btn=document.querySelector('.btn-send-notif');
+  const iconUrl = _('notifIconInput').value.trim();
+  const linkUrl = _('notifLinkInput').value.trim();
+  const btnLbl  = _('notifBtnInput').value.trim() || 'افتح الرابط';
+
+  const btn = document.querySelector('.btn-send-notif');
   btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>&nbsp;جاري الإرسال...';
   try{
     const fd=new FormData();
     fd.append('text',text); fd.append('type',selectedType);
     fd.append('title',title); fd.append('duration',selectedDur);
-    fd.append('icon',iconUrl); fd.append('link',linkUrl); fd.append('btn_label',btnLbl);
+    fd.append('icon', iconUrl); fd.append('link', linkUrl);
+    fd.append('btn_label', btnLbl);
     const r=await fetch('/broadcast',{method:'POST',body:fd}); const d=await r.json();
     if(d.ok){
       showToast('✅ تم إرسال الإشعار للكل','ok');
       closeAdmin();
-      showNotif(title,text,selectedType,Math.min(selectedDur*1000,8000),iconUrl,linkUrl,btnLbl);
+      showNotif(title, text, selectedType, Math.min(selectedDur*1000,8000), iconUrl, linkUrl, btnLbl);
     }
   }catch{ showToast('❌ خطأ في الإرسال','err'); }
   btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i>&nbsp;إرسال للكل';
 }
+
 async function clearNotif(){
   const fd=new FormData();
-  fd.append('text',''); fd.append('type','info'); fd.append('title','TALASHNY'); fd.append('duration','0');
+  fd.append('text',''); fd.append('type','info');
+  fd.append('title','TALASHNY'); fd.append('duration','0');
   await fetch('/broadcast',{method:'POST',body:fd});
-  showToast('✅ تم مسح الإشعار','ok'); lastBroadcastId='';
+  showToast('✅ تم مسح الإشعار','ok');
+  lastBroadcast='';
 }
 
-/* ══ RENDER ══ */
+/* ── RENDER ── */
 function renderCards(list,online){
   const wrap=_('cardsWrap'), cnt=_('ccnt');
   if(online!==undefined) _('st-online').textContent=online;
@@ -1436,7 +1993,7 @@ function renderCards(list,online){
   }).join('');
 }
 
-/* ══ TIMER ══ */
+/* ── TIMER ── */
 const CIRC=2*Math.PI*16;
 function startTimer(cb){
   let t=15; const num=_('tnum'), prog=_('tprog');
@@ -1455,21 +2012,19 @@ let lastBroadcastId='';
 async function getCards(){
   try{
     const r=await fetch('/fetch?t='+Date.now()); const d=await r.json();
-    // لو الجلسة انتهت من السيرفر → روح لتسجيل الدخول
-    if(!d.ok && d.reason==='session_expired'){
-      clearInterval(timerInt); stopPing();
-      goTo('s-login');
-      _('inpNum').value=''; _('inpPw').value='';
-      return;
-    }
     if(d.ok){
       renderCards(d.promos,d.online);
-      const bc=d.broadcast;
-      if(bc?.text && bc.id && bc.id!==lastBroadcastId){
-        lastBroadcastId=bc.id;
+      const bc = d.broadcast;
+      if(bc?.text && bc.id && bc.id !== lastBroadcastId){
+        lastBroadcastId = bc.id;
         fetch('/broadcast-view',{method:'POST'}).catch(()=>{});
         playNotifSound();
-        showNotif(bc.title||'TALASHNY',bc.text,bc.type||'info',Math.min((bc.duration||300)*1000,8000),bc.icon||'',bc.link||'',bc.btn_label||'افتح الرابط');
+        showNotif(
+          bc.title||'TALASHNY', bc.text,
+          bc.type||'info',
+          Math.min((bc.duration||300)*1000, 8000),
+          bc.icon||'', bc.link||'', bc.btn_label||'افتح الرابط'
+        );
       }
     }
   }catch{}
@@ -1489,18 +2044,9 @@ def index():
 @app.route("/check")
 def check():
     if session.get("logged_in"):
-        number     = session.get("number","")
-        login_time = session.get("login_time", 0)
-        logout_t   = get_logout_time(number)
-        # لو الجلسة أتعملت قبل آخر logout → ارفضها وامسحها
-        if login_time <= logout_t:
-            session.clear()
-            resp = jsonify({"logged": False})
-            resp.delete_cookie("session")
-            return resp
         sid = session.get("sid","")
         if sid: update_online(sid)
-        return jsonify({"logged":True,"number":number})
+        return jsonify({"logged":True,"number":session.get("number","")})
     return jsonify({"logged":False})
 
 @app.route("/login", methods=["POST"])
@@ -1520,7 +2066,6 @@ def login():
         session["number"]     = number
         session["password"]   = password
         session["sid"]        = sid
-        session["login_time"] = time.time()   # ← وقت تسجيل الدخول
         update_online(sid)
         return jsonify({"ok":True,"number":number})
     return jsonify({"ok":False,"error":"الرقم أو الباسورد غلط — تحقق وحاول تاني"})
@@ -1535,20 +2080,14 @@ def ping():
 def fetch():
     if not session.get("logged_in"):
         return jsonify({"ok":False})
-    # تحقق إن الجلسة مش قديمة (قبل آخر logout)
-    number     = session.get("number","")
-    login_time = session.get("login_time", 0)
-    if login_time <= get_logout_time(number):
-        session.clear()
-        return jsonify({"ok":False, "reason":"session_expired"})
     sid = session.get("sid","")
     if sid: update_online(sid)
     do_refresh()
-    check_schedule_and_fire()
+    check_schedule_and_fire()   # ← تحقق من الجدولة مع كل fetch
     return jsonify({
-        "ok":      True,
-        "promos":  api_promos(session["token"],session["number"]),
-        "online":  get_online_count(),
+        "ok":    True,
+        "promos":api_promos(session["token"],session["number"]),
+        "online":get_online_count(),
         "broadcast": read_broadcast()
     })
 
@@ -1575,6 +2114,7 @@ def broadcast_view():
                 bid = data.get("id","")
                 with open(BROADCAST_FILE,"w",encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False)
+                # حدّث السجل كمان
                 if bid and os.path.exists(HISTORY_FILE):
                     with open(HISTORY_FILE,"r",encoding="utf-8") as f:
                         history = json.load(f)
@@ -1601,8 +2141,8 @@ def broadcast_history():
 def schedule_add():
     import uuid as _u
     try:
-        fire_at_ts = float(request.form.get("fire_at_ts", 0))
-        fire_at    = request.form.get("fire_at","")
+        fire_at_ts = float(request.form.get("fire_at_ts", 0))  # unix timestamp من المتصفح
+        fire_at    = request.form.get("fire_at","")            # نص للعرض فقط
         text       = request.form.get("text","").strip()
         typ        = request.form.get("type","info")
         title      = request.form.get("title","TALASHNY")
@@ -1643,6 +2183,7 @@ def schedule_list():
 
 @app.route("/schedule-debug")
 def schedule_debug():
+    """للتشخيص — يوضح الوقت الحالي للسيرفر والإشعارات المجدولة"""
     return jsonify({
         "server_time":    time.time(),
         "server_time_hr": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1661,6 +2202,7 @@ def admin_stats():
     today = get_today()
     with daily_lock:
         count = daily_charges.get("count",0) if daily_charges.get("date")==today else 0
+    # عداد المشاهدات
     views = 0
     try:
         bc = read_broadcast()
@@ -1680,22 +2222,14 @@ def redeem():
         record_charge(session["number"], serial, amount)
     return jsonify({"ok":code==200,"code":code})
 
-# ←← إصلاح الـ LOGOUT: POST بدل GET + مسح الكوكيز + حفظ وقت الـ logout
-@app.route("/logout", methods=["GET","POST"])
+@app.route("/logout")
 def logout():
-    sid    = session.get("sid","")
-    number = session.get("number","")
+    sid = session.get("sid","")
     if sid:
         with online_lock:
             online_users.pop(sid, None)
-    # ← احفظ وقت الـ logout قبل مسح الجلسة
-    if number:
-        save_logout_time(number)
     session.clear()
-    resp = jsonify({"ok":True})
-    # ← امسح الكوكيز من البراوزر
-    resp.delete_cookie("session")
-    return resp
+    return jsonify({"ok":True})
 
 # ══════════════════════════════════════════════════════
 if __name__ == "__main__":
